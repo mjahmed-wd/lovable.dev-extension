@@ -118,7 +118,7 @@ const TestCases: React.FC = () => {
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="bg-white p-4 border-b border-gray-200">
+      <div className="bg-white p-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-semibold text-gray-900">Test Cases</h1>
           <div className="flex gap-2">
@@ -147,240 +147,235 @@ const TestCases: React.FC = () => {
         </div>
       </div>
 
-      {/* Test Cases List */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {testCases.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No test cases yet</h3>
-            <p className="text-gray-500 mb-4">Create your first test case to get started</p>
-            <button 
-              onClick={() => {
-                setEditingCase(null);
-                setFormData({
-                  title: '',
-                  description: '',
-                  steps: [{ id: uuidv4(), description: 'Step 1...' }, { id: uuidv4(), description: 'Step 2...' }],
-                  expectedResult: '',
-                  priority: 'medium',
-                });
-                setShowAddForm(true);
-              }}
-              className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
-            >
-              Create Test Case
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {testCases.map((testCase) => (
-              <div key={testCase.id} className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-medium text-gray-900">{testCase.title}</h3>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${resultColors[testCase.result]}`}>
-                        {testCase.result.charAt(0).toUpperCase() + testCase.result.slice(1)}
-                      </span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${priorityColors[testCase.priority]}`}>
-                        {testCase.priority.charAt(0).toUpperCase() + testCase.priority.slice(1)}
-                      </span>
-                    </div>
-                    {testCase.description && (
-                      <p className="text-sm text-gray-600 mb-3">{testCase.description}</p>
-                    )}
-                    
-                    {/* Test Steps */}
-                    {testCase.steps.length > 0 && (
-                      <div className="mb-3">
-                        <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Steps</h4>
-                        <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
-                          {testCase.steps.map((step, index) => (
-                            <li key={step.id}>{step.description}</li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Add/Edit Form */}
+        {showAddForm && (
+          <div className="bg-white border-b border-gray-200 p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {editingCase ? 'Edit Test Case' : 'Add New Test Case'}
+            </h3>
+            
+            <div className="space-y-4 max-w-2xl">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500"
+                  placeholder="Test case title..."
+                />
+              </div>
 
-                    {/* Expected Result */}
-                    {testCase.expectedResult && (
-                      <div className="mb-3">
-                        <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Expected Result</h4>
-                        <p className="text-sm text-gray-700">{testCase.expectedResult}</p>
-                      </div>
-                    )}
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 resize-none"
+                  rows={3}
+                  placeholder="Test description..."
+                />
+              </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2">
+              {/* Test Steps */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-700">Test Steps</label>
+                  <button
+                    onClick={addStep}
+                    className="flex items-center gap-2 px-3 py-1 text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Step
+                  </button>
+                </div>
+                
+                {/* Steps List */}
+                <div className="space-y-2">
+                  {formData.steps.map((step, index) => (
+                    <div key={step.id} className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <span className="text-sm text-gray-500 w-6 flex-shrink-0">{index + 1}.</span>
+                      <input
+                        type="text"
+                        value={step.description}
+                        onChange={(e) => updateStep(step.id, e.target.value)}
+                        className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded text-gray-900 placeholder-gray-500"
+                        placeholder={step.description}
+                      />
                       <button
-                        onClick={() => updateTestResult(testCase.id, 'pass')}
-                        className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200"
+                        onClick={() => removeStep(step.id)}
+                        className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
+                        disabled={formData.steps.length <= 1}
                       >
-                        <CheckCircle className="w-3 h-3" />
-                        Pass
-                      </button>
-                      <button
-                        onClick={() => updateTestResult(testCase.id, 'fail')}
-                        className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
-                      >
-                        <XCircle className="w-3 h-3" />
-                        Fail
-                      </button>
-                      <button
-                        onClick={() => updateTestResult(testCase.id, 'pending')}
-                        className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
-                      >
-                        <Clock className="w-3 h-3" />
-                        Reset
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
-                  
-                  <div className="flex gap-1 ml-4">
-                    <button 
-                      onClick={() => startEditTestCase(testCase.id)}
-                      className="p-2 text-gray-400 hover:text-blue-600"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => deleteTestCase(testCase.id)}
-                      className="p-2 text-gray-400 hover:text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  ))}
                 </div>
               </div>
-            ))}
+
+              {/* Expected Result */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expected Result</label>
+                <textarea
+                  value={formData.expectedResult}
+                  onChange={(e) => setFormData({ ...formData, expectedResult: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 resize-none"
+                  rows={3}
+                  placeholder="Expected result..."
+                />
+              </div>
+
+              {/* Priority Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <select
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as Priority })}
+                  className="w-32 px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleAddTestCase}
+                  disabled={!formData.title.trim()}
+                  className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  {editingCase ? 'Update Test Case' : 'Add Test Case'}
+                </button>
+                <button
+                  onClick={resetForm}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Add/Edit Form Modal */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {editingCase ? 'Edit Test Case' : 'Add New Test Case'}
-              </h3>
+        {/* Test Cases List */}
+        <div className="p-4">
+          {testCases.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No test cases yet</h3>
+              <p className="text-gray-500 mb-4">Create your first test case to get started</p>
+              <button 
+                onClick={() => {
+                  setEditingCase(null);
+                  setFormData({
+                    title: '',
+                    description: '',
+                    steps: [{ id: uuidv4(), description: 'Step 1...' }, { id: uuidv4(), description: 'Step 2...' }],
+                    expectedResult: '',
+                    priority: 'medium',
+                  });
+                  setShowAddForm(true);
+                }}
+                className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+              >
+                Create Test Case
+              </button>
             </div>
-            
-            {/* Modal Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-4">
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500"
-                    placeholder="Test case title..."
-                  />
-                </div>
+          ) : (
+            <div className="space-y-3">
+              {testCases.map((testCase) => (
+                <div key={testCase.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-medium text-gray-900">{testCase.title}</h3>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${resultColors[testCase.result]}`}>
+                          {testCase.result.charAt(0).toUpperCase() + testCase.result.slice(1)}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${priorityColors[testCase.priority]}`}>
+                          {testCase.priority.charAt(0).toUpperCase() + testCase.priority.slice(1)}
+                        </span>
+                      </div>
+                      {testCase.description && (
+                        <p className="text-sm text-gray-600 mb-3">{testCase.description}</p>
+                      )}
+                      
+                      {/* Test Steps */}
+                      {testCase.steps.length > 0 && (
+                        <div className="mb-3">
+                          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Steps</h4>
+                          <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
+                            {testCase.steps.map((step, index) => (
+                              <li key={step.id}>{step.description}</li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
 
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 resize-none"
-                    rows={3}
-                    placeholder="Test description..."
-                  />
-                </div>
+                      {/* Expected Result */}
+                      {testCase.expectedResult && (
+                        <div className="mb-3">
+                          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Expected Result</h4>
+                          <p className="text-sm text-gray-700">{testCase.expectedResult}</p>
+                        </div>
+                      )}
 
-                {/* Test Steps */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700">Test Steps</label>
-                    <button
-                      onClick={addStep}
-                      className="flex items-center gap-2 px-3 py-1 text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Step
-                    </button>
-                  </div>
-                  
-                  {/* Scrollable Steps Container */}
-                  <div className="max-h-64 overflow-y-auto space-y-2 border border-gray-200 rounded-lg p-3">
-                    {formData.steps.map((step, index) => (
-                      <div key={step.id} className="flex items-center gap-2">
-                        <span className="text-sm text-gray-500 w-6">{index + 1}.</span>
-                        <input
-                          type="text"
-                          value={step.description}
-                          onChange={(e) => updateStep(step.id, e.target.value)}
-                          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-gray-900 placeholder-gray-500"
-                          placeholder={step.description}
-                        />
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => removeStep(step.id)}
-                          className="p-1 text-gray-400 hover:text-red-600"
-                          disabled={formData.steps.length <= 1}
+                          onClick={() => updateTestResult(testCase.id, 'pass')}
+                          className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <CheckCircle className="w-3 h-3" />
+                          Pass
+                        </button>
+                        <button
+                          onClick={() => updateTestResult(testCase.id, 'fail')}
+                          className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
+                        >
+                          <XCircle className="w-3 h-3" />
+                          Fail
+                        </button>
+                        <button
+                          onClick={() => updateTestResult(testCase.id, 'pending')}
+                          className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
+                        >
+                          <Clock className="w-3 h-3" />
+                          Reset
                         </button>
                       </div>
-                    ))}
+                    </div>
+                    
+                    <div className="flex gap-1 ml-4">
+                      <button 
+                        onClick={() => startEditTestCase(testCase.id)}
+                        className="p-2 text-gray-400 hover:text-blue-600"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => deleteTestCase(testCase.id)}
+                        className="p-2 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                {/* Expected Result */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Expected Result</label>
-                  <textarea
-                    value={formData.expectedResult}
-                    onChange={(e) => setFormData({ ...formData, expectedResult: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 resize-none"
-                    rows={3}
-                    placeholder="Expected result..."
-                  />
-                </div>
-
-                {/* Priority Dropdown */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                  <select
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as Priority })}
-                    className="w-32 px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-              </div>
+              ))}
             </div>
-
-            {/* Modal Footer */}
-            <div className="p-6 border-t border-gray-200 flex gap-3">
-              <button
-                onClick={resetForm}
-                className="flex-1 px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddTestCase}
-                disabled={!formData.title.trim()}
-                className="flex-1 px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {editingCase ? 'Update Test Case' : 'Add Test Case'}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
