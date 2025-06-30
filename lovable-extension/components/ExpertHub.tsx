@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Star, MessageCircle, Clock, DollarSign, Search, Filter, Mail, Phone, Globe, MapPin } from 'lucide-react';
+import { Users, Star, MessageCircle, Clock, DollarSign, Search, Filter, Mail, Phone, Globe, MapPin, UserPlus, Users2, Headphones } from 'lucide-react';
 
 interface Expert {
   id: string;
@@ -144,6 +144,8 @@ const ExpertHub: React.FC = () => {
     return nameMatch && skillMatch && availabilityMatch && rateMatch;
   });
 
+  const availableCount = experts.filter(e => e.availability === 'available').length;
+
   const handleContactExpert = (expert: Expert) => {
     setSelectedExpert(expert);
     setShowContactForm(true);
@@ -167,7 +169,6 @@ const ExpertHub: React.FC = () => {
     setShowContactForm(false);
     setSelectedExpert(null);
 
-    // Show success message
     alert(`Your message has been sent to ${selectedExpert.name}. They will respond within ${selectedExpert.responseTime}.`);
   };
 
@@ -181,254 +182,142 @@ const ExpertHub: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="p-4 bg-white border-b border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Expert Hub</h2>
-        <p className="text-sm text-gray-600 mb-4">
+      <div className="bg-white p-4 border-b border-gray-200">
+        <h1 className="text-xl font-semibold text-gray-900 mb-2">Expert Hub</h1>
+        <p className="text-sm text-gray-600">
           Connect with experts, apply to become one, or get professional consulting
         </p>
+      </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 gap-3 mb-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="w-5 h-5 text-blue-600" />
-              <h3 className="font-medium text-blue-900">Apply as an Expert</h3>
-            </div>
-            <p className="text-sm text-blue-700 mb-3">Join our network and share your expertise</p>
-            <div className="flex gap-2">
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">Expert Network</span>
-              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">Earn Money</span>
-            </div>
-            <button className="mt-3 bg-blue-900 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-800">
-              Get Started
-            </button>
-          </div>
-
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <MessageCircle className="w-5 h-5 text-green-600" />
-              <h3 className="font-medium text-green-900">Browse Experts & Connect</h3>
-            </div>
-            <p className="text-sm text-green-700 mb-3">Find the right expert for your project</p>
-            <div className="flex gap-2 items-center">
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                {experts.filter(e => e.availability === 'available').length} Available Now
-              </span>
-              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Instant Chat</span>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="space-y-4">
+          {/* Apply as an Expert Card */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <UserPlus className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Apply as an Expert</h3>
+                <p className="text-gray-600 mb-4">Join our network and share your expertise</p>
+                
+                <div className="flex gap-3 mb-4">
+                  <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">Expert Network</span>
+                  <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">Earn Money</span>
+                </div>
+                
+                <button className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800">
+                  Get Started
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Search and Filters */}
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search experts or skills..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm"
-              />
+          {/* Browse Experts & Connect Card */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Users2 className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Browse Experts & Connect</h3>
+                <p className="text-gray-600 mb-4">Find the right expert for your project</p>
+                
+                <div className="flex gap-3 mb-4">
+                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                    {availableCount} Available
+                  </span>
+                  <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">Instant Chat</span>
+                </div>
+                
+                <button className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800">
+                  Browse
+                </button>
+              </div>
             </div>
-            <button className="p-2 border border-gray-300 rounded-md hover:bg-gray-50">
-              <Filter className="w-4 h-4 text-gray-500" />
-            </button>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <select
-              value={skillFilter}
-              onChange={(e) => setSkillFilter(e.target.value)}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-            >
-              <option value="">All Skills</option>
-              {allSkills.map(skill => (
-                <option key={skill} value={skill}>{skill}</option>
-              ))}
-            </select>
-
-            <select
-              value={availabilityFilter}
-              onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'busy')}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-            >
-              <option value="all">All Availability</option>
-              <option value="available">Available</option>
-              <option value="busy">Busy</option>
-            </select>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Max: $</span>
-              <input
-                type="number"
-                value={maxRate}
-                onChange={(e) => setMaxRate(Number(e.target.value))}
-                className="w-20 px-2 py-1 border border-gray-300 rounded-md text-sm"
-                min="0"
-                max="500"
-              />
-              <span className="text-sm text-gray-600">/hr</span>
+          {/* Free Consulting & Quotes Card */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Headphones className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Free Consulting & Quotes</h3>
+                <p className="text-gray-600 mb-4">Can't find the right expert? We'll help you</p>
+                
+                <div className="flex gap-3 mb-4">
+                  <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">Free</span>
+                  <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">24h Response</span>
+                </div>
+                
+                <button className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800">
+                  Contact Us
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Expert List */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {filteredExperts.length === 0 ? (
-          <div className="text-center text-gray-500 mt-8">
-            <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p>No experts found matching your criteria.</p>
+      {/* Bottom Status Bar */}
+      <div className="bg-white border-t border-gray-200 p-4">
+        <div className="flex items-center justify-center gap-6 text-sm">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-gray-500" />
+            <span className="text-gray-700">{experts.length} Experts</span>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredExperts.map((expert) => (
-              <div key={expert.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-medium text-gray-900">{expert.name}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${availabilityColors[expert.availability]}`}>
-                        {availabilityIcons[expert.availability]} {expert.availability}
-                      </span>
-                    </div>
-                    <p className="text-gray-600 text-sm mb-2">{expert.title}</p>
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
-                      <div className="flex items-center gap-1">
-                        {renderStars(expert.rating)}
-                        <span className="ml-1">{expert.rating} ({expert.reviews} reviews)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <DollarSign className="w-3 h-3" />
-                        <span>${expert.hourlyRate}/hr</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        <span>{expert.location}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleContactExpert(expert)}
-                    disabled={expert.availability === 'offline'}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
-                  >
-                    Contact
-                  </button>
-                </div>
-
-                <p className="text-gray-700 text-sm mb-3">{expert.bio}</p>
-
-                {/* Skills */}
-                <div className="mb-3">
-                  <div className="flex flex-wrap gap-1">
-                    {expert.skills.map((skill) => (
-                      <span key={skill} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Additional Info */}
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      <span>Responds {expert.responseTime}</span>
-                    </div>
-                    <span>{expert.completedProjects} projects completed</span>
-                    <span>Languages: {expert.languages.join(', ')}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {expert.portfolio && (
-                      <a
-                        href={expert.portfolio}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Globe className="w-3 h-3" />
-                      </a>
-                    )}
-                    {expert.email && (
-                      <a
-                        href={`mailto:${expert.email}`}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Mail className="w-3 h-3" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-gray-700">{availableCount} Available Now</span>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Contact Form Modal */}
       {showContactForm && selectedExpert && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Contact {selectedExpert.name}
             </h3>
-            
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
-                <select
+                <input
+                  type="text"
                   value={contactForm.projectType}
                   onChange={(e) => setContactForm({ ...contactForm, projectType: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Select project type</option>
-                  <option value="consulting">Consulting</option>
-                  <option value="development">Development</option>
-                  <option value="design">Design</option>
-                  <option value="code-review">Code Review</option>
-                  <option value="mentoring">Mentoring</option>
-                </select>
+                  placeholder="e.g., Web Development, Consulting"
+                />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Budget Range</label>
-                <select
+                <label className="block text-sm font-medium text-gray-700 mb-1">Budget</label>
+                <input
+                  type="text"
                   value={contactForm.budget}
                   onChange={(e) => setContactForm({ ...contactForm, budget: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Select budget</option>
-                  <option value="<$1000">Less than $1,000</option>
-                  <option value="$1000-$5000">$1,000 - $5,000</option>
-                  <option value="$5000-$10000">$5,000 - $10,000</option>
-                  <option value=">$10000">More than $10,000</option>
-                </select>
+                  placeholder="e.g., $5,000 - $10,000"
+                />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Timeline</label>
-                <select
+                <input
+                  type="text"
                   value={contactForm.timeline}
                   onChange={(e) => setContactForm({ ...contactForm, timeline: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Select timeline</option>
-                  <option value="asap">ASAP</option>
-                  <option value="1-2weeks">1-2 weeks</option>
-                  <option value="1month">1 month</option>
-                  <option value="2-3months">2-3 months</option>
-                  <option value="flexible">Flexible</option>
-                </select>
+                  placeholder="e.g., 2-3 weeks"
+                />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
                 <textarea
                   value={contactForm.message}
                   onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
@@ -438,47 +327,28 @@ const ExpertHub: React.FC = () => {
                 />
               </div>
             </div>
-
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={submitContactRequest}
-                disabled={!contactForm.message.trim()}
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                Send Message
-              </button>
               <button
                 onClick={() => {
                   setShowContactForm(false);
                   setSelectedExpert(null);
                   setContactForm({ message: '', projectType: '', budget: '', timeline: '' });
                 }}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400"
+                className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
               >
                 Cancel
+              </button>
+              <button
+                onClick={submitContactRequest}
+                disabled={!contactForm.message.trim()}
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Send Message
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Free Consulting Section */}
-      <div className="p-4 bg-purple-50 border-t border-purple-200">
-        <div className="flex items-center gap-2 mb-2">
-          <MessageCircle className="w-5 h-5 text-purple-600" />
-          <h3 className="font-medium text-purple-900">Free Consulting & Quotes</h3>
-        </div>
-        <p className="text-sm text-purple-700 mb-3">
-          Can't find the right expert? We'll help you
-        </p>
-        <div className="flex gap-2 mb-3">
-          <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">Free</span>
-          <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">24h Response</span>
-        </div>
-        <button className="bg-purple-900 text-white px-4 py-2 rounded-md text-sm hover:bg-purple-800">
-          Contact Us
-        </button>
-      </div>
     </div>
   );
 };

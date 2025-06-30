@@ -1,37 +1,27 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Filter, ChevronDown, CheckCircle, Clock, AlertCircle, StickyNote, X, Zap } from 'lucide-react';
+import { Plus, Clock, CheckCircle, AlertTriangle, Trash2, Edit3, ChevronDown, StickyNote } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-
-type Priority = 'low' | 'medium' | 'high' | 'urgent';
-type Status = 'todo' | 'in-progress' | 'completed';
-
-interface Note {
-  id: string;
-  content: string;
-  createdAt: Date;
-}
-
-interface Feature {
-  id: string;
-  title: string;
-  description: string;
-  status: Status;
-  priority: Priority;
-  notes: Note[];
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { useFeatureStore, type Priority, type Status } from '../stores/featureStore';
 
 const FeatureList: React.FC = () => {
-  const [features, setFeatures] = useState<Feature[]>([]);
+  const {
+    features,
+    addFeature,
+    updateFeature,
+    deleteFeature,
+    updateFeatureStatus,
+    addNoteToFeature,
+    removeNoteFromFeature,
+  } = useFeatureStore();
+
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingFeature, setEditingFeature] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<Status | 'all'>('all');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
-  const [sortBy, setSortBy] = useState<'priority' | 'status' | 'date'>('priority');
   const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
   const [newNote, setNewNote] = useState<{ [key: string]: string }>({});
 
-  // Form state
+  // Form state - defaults to 'pending' status and 'medium' priority
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -39,30 +29,30 @@ const FeatureList: React.FC = () => {
   });
 
   const priorityColors = {
-    low: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    medium: 'bg-amber-100 text-amber-800 border-amber-200',
-    high: 'bg-orange-100 text-orange-800 border-orange-200',
-    urgent: 'bg-red-100 text-red-800 border-red-200',
+    low: 'text-green-600',
+    medium: 'text-yellow-600',
+    high: 'text-red-600',
+    urgent: 'text-red-600',
   };
 
   const statusConfig = {
-    todo: { 
+    pending: { 
       icon: <Clock className="w-4 h-4" />, 
-      color: 'text-gray-600', 
+      color: 'text-gray-600',
       bg: 'bg-gray-100',
-      label: 'To Do'
+      label: 'Pending'
     },
     'in-progress': { 
-      icon: <AlertCircle className="w-4 h-4" />, 
-      color: 'text-blue-600', 
-      bg: 'bg-blue-100',
+      icon: <AlertTriangle className="w-4 h-4" />, 
+      color: 'text-blue-600',
+      bg: 'bg-blue-100', 
       label: 'In Progress'
     },
-    completed: { 
+    done: { 
       icon: <CheckCircle className="w-4 h-4" />, 
-      color: 'text-green-600', 
+      color: 'text-green-600',
       bg: 'bg-green-100',
-      label: 'Completed'
+      label: 'Done'
     },
   };
 
@@ -76,238 +66,335 @@ const FeatureList: React.FC = () => {
     });
 
     return filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'priority':
-          return priorityOrder[b.priority] - priorityOrder[a.priority];
-        case 'status':
-          return a.status.localeCompare(b.status);
-        case 'date':
-          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        default:
-          return 0;
-      }
+      return priorityOrder[b.priority] - priorityOrder[a.priority];
     });
-  }, [features, filterStatus, filterPriority, sortBy]);
+  }, [features, filterStatus, filterPriority]);
 
   const stats = {
     total: features.length,
-    completed: features.filter(f => f.status === 'completed').length,
+    pending: features.filter(f => f.status === 'pending').length,
     inProgress: features.filter(f => f.status === 'in-progress').length,
-    todo: features.filter(f => f.status === 'todo').length,
+    done: features.filter(f => f.status === 'done').length,
+    high: features.filter(f => f.priority === 'high').length,
+    medium: features.filter(f => f.priority === 'medium').length,
+    low: features.filter(f => f.priority === 'low').length,
+    urgent: features.filter(f => f.priority === 'urgent').length,
   };
 
   const handleAddFeature = () => {
     if (!formData.title.trim()) return;
 
-    const newFeature: Feature = {
-      id: uuidv4(),
-      title: formData.title,
-      description: formData.description,
-      status: 'todo',
-      priority: formData.priority,
-      notes: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    if (editingFeature) {
+      // Update existing feature
+      updateFeature(editingFeature, {
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
+      });
+      setEditingFeature(null);
+    } else {
+      // Add new feature - ALWAYS starts as 'pending'
+      addFeature({
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
+        notes: [],
+      });
+    }
 
-    setFeatures([...features, newFeature]);
     setFormData({ title: '', description: '', priority: 'medium' });
     setShowAddForm(false);
   };
 
-  const updateFeatureStatus = (featureId: string, status: Status) => {
-    setFeatures(features.map(feature =>
-      feature.id === featureId
-        ? { ...feature, status, updatedAt: new Date() }
-        : feature
-    ));
+  const startEditFeature = (featureId: string) => {
+    const feature = features.find(f => f.id === featureId);
+    if (!feature) return;
+    
+    setEditingFeature(featureId);
+    setFormData({
+      title: feature.title,
+      description: feature.description,
+      priority: feature.priority,
+    });
+    setShowAddForm(true);
+  };
+
+  const cancelEdit = () => {
+    setEditingFeature(null);
+    setFormData({ title: '', description: '', priority: 'medium' });
+    setShowAddForm(false);
   };
 
   const addNote = (featureId: string) => {
     const noteContent = newNote[featureId]?.trim();
     if (!noteContent) return;
 
-    const note: Note = {
-      id: uuidv4(),
-      content: noteContent,
-      createdAt: new Date(),
-    };
-
-    setFeatures(features.map(feature =>
-      feature.id === featureId
-        ? { ...feature, notes: [...feature.notes, note], updatedAt: new Date() }
-        : feature
-    ));
-
+    addNoteToFeature(featureId, noteContent);
     setNewNote({ ...newNote, [featureId]: '' });
   };
 
   const removeNote = (featureId: string, noteId: string) => {
-    setFeatures(features.map(feature =>
-      feature.id === featureId
-        ? { ...feature, notes: feature.notes.filter(note => note.id !== noteId) }
-        : feature
-    ));
+    removeNoteFromFeature(featureId, noteId);
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Stats Cards */}
-      <div className="p-4 bg-white">
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-3 text-white">
-            <div className="text-xl font-bold">{stats.total}</div>
-            <div className="text-xs text-blue-100">Total Features</div>
+    <div className="h-full flex flex-col bg-gray-50">
+      {/* Header */}
+      <div className="bg-white p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-semibold text-gray-900">Todo Manager</h1>
+          <button className="text-gray-400 hover:text-gray-600">
+            <Trash2 className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Status Pills */}
+        <div className="flex gap-3 mb-4">
+          <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-full">
+            <Clock className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-medium">{stats.pending} Pending</span>
           </div>
-          <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-3 text-white">
-            <div className="text-xl font-bold">{stats.completed}</div>
-            <div className="text-xs text-green-100">Completed</div>
+          <div className="flex items-center gap-2 bg-blue-100 px-3 py-2 rounded-full">
+            <AlertTriangle className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-600">{stats.inProgress} In Progress</span>
+          </div>
+          <div className="flex items-center gap-2 bg-green-100 px-3 py-2 rounded-full">
+            <CheckCircle className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-medium text-green-600">{stats.done} Done</span>
           </div>
         </div>
 
-        {/* Add Feature Button */}
+        {/* Add Todo Button */}
         <button
-          onClick={() => setShowAddForm(true)}
-          className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 transform hover:scale-105 shadow-lg flex items-center justify-center gap-2"
+          onClick={() => {
+            setEditingFeature(null);
+            setFormData({ title: '', description: '', priority: 'medium' });
+            setShowAddForm(true);
+          }}
+          className="w-full border-2 border-dashed border-gray-300 hover:border-gray-400 rounded-lg py-4 px-4 flex items-center justify-center text-gray-600 hover:text-gray-700 transition-colors"
         >
-          <Plus className="w-5 h-5" />
-          Add New Feature
+          <Plus className="w-5 h-5 mr-2" />
+          Add New Todo
         </button>
+      </div>
 
-        {/* Filters */}
-        <div className="grid grid-cols-2 gap-2 mt-4">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as Status | 'all')}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Status</option>
-            <option value="todo">To Do</option>
-            <option value="in-progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
+      {/* Filter Pills */}
+      <div className="bg-white px-4 py-3 border-b border-gray-200">
+        {/* Status Filters */}
+        <div className="mb-3">
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Status</span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilterStatus('all')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterStatus === 'all' 
+                  ? 'bg-black text-white' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All {stats.total}
+            </button>
+            <button
+              onClick={() => setFilterStatus('pending')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterStatus === 'pending' 
+                  ? 'bg-gray-600 text-white' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Pending {stats.pending}
+            </button>
+            <button
+              onClick={() => setFilterStatus('in-progress')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterStatus === 'in-progress' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+              }`}
+            >
+              In Progress {stats.inProgress}
+            </button>
+            <button
+              onClick={() => setFilterStatus('done')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterStatus === 'done' 
+                  ? 'bg-green-600 text-white' 
+                  : 'bg-green-100 text-green-600 hover:bg-green-200'
+              }`}
+            >
+              Completed {stats.done}
+            </button>
+          </div>
+        </div>
 
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value as Priority | 'all')}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Priority</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
+        {/* Priority Filters */}
+        <div>
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Priority</span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilterPriority('all')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterPriority === 'all' 
+                  ? 'bg-black text-white' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Priorities
+            </button>
+            <button
+              onClick={() => setFilterPriority('urgent')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterPriority === 'urgent' 
+                  ? 'bg-red-600 text-white' 
+                  : 'bg-red-100 text-red-600 hover:bg-red-200'
+              }`}
+            >
+              Urgent {stats.urgent}
+            </button>
+            <button
+              onClick={() => setFilterPriority('high')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterPriority === 'high' 
+                  ? 'bg-red-500 text-white' 
+                  : 'bg-red-50 text-red-500 hover:bg-red-100'
+              }`}
+            >
+              High {stats.high}
+            </button>
+            <button
+              onClick={() => setFilterPriority('medium')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterPriority === 'medium' 
+                  ? 'bg-yellow-600 text-white' 
+                  : 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+              }`}
+            >
+              Medium {stats.medium}
+            </button>
+            <button
+              onClick={() => setFilterPriority('low')}
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                filterPriority === 'low' 
+                  ? 'bg-green-600 text-white' 
+                  : 'bg-green-100 text-green-600 hover:bg-green-200'
+              }`}
+            >
+              Low {stats.low}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Feature List */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      {/* Todo List */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">All Tasks</h2>
+        
         {filteredAndSortedFeatures.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Zap className="w-8 h-8 text-blue-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No features yet</h3>
-            <p className="text-gray-600 mb-4">Create your first feature to get started!</p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-2 rounded-lg font-semibold hover:from-blue-600 hover:to-purple-700 transition-all duration-200"
-            >
-              Add Your First Feature
-            </button>
+          <div className="text-center py-8">
+            <p className="text-gray-500">No tasks found</p>
           </div>
         ) : (
           <div className="space-y-3">
             {filteredAndSortedFeatures.map((feature) => (
-              <div key={feature.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-3">
+              <div key={feature.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3 flex-1">
+                    <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900">{feature.title}</h3>
-                        <span className={`px-2 py-1 rounded-lg text-xs font-semibold border ${priorityColors[feature.priority]}`}>
-                          {feature.priority.toUpperCase()}
+                      <h3 className="font-medium text-gray-900">{feature.title}</h3>
+                      {feature.description && (
+                        <p className="text-sm text-gray-600 mt-1">{feature.description}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${statusConfig[feature.status].bg} ${statusConfig[feature.status].color}`}>
+                          {statusConfig[feature.status].label}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium bg-yellow-100 ${priorityColors[feature.priority]}`}>
+                          {feature.priority.charAt(0).toUpperCase() + feature.priority.slice(1)}
                         </span>
                       </div>
-                      {feature.description && (
-                        <p className="text-gray-600 text-sm mb-3">{feature.description}</p>
-                      )}
-                      <div className="flex items-center gap-3">
-                        <select
-                          value={feature.status}
-                          onChange={(e) => updateFeatureStatus(feature.id, e.target.value as Status)}
-                          className="px-3 py-1 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2 mt-3">
+                        <button
+                          onClick={() => updateFeatureStatus(feature.id, 'in-progress')}
+                          className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-600 rounded text-sm font-medium hover:bg-blue-200"
                         >
-                          <option value="todo">To Do</option>
-                          <option value="in-progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                        </select>
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg ${statusConfig[feature.status].bg}`}>
-                          <span className={statusConfig[feature.status].color}>
-                            {statusConfig[feature.status].icon}
-                          </span>
-                          <span className={`text-xs font-medium ${statusConfig[feature.status].color}`}>
-                            {statusConfig[feature.status].label}
-                          </span>
-                        </div>
+                          <AlertTriangle className="w-3 h-3" />
+                          Start
+                        </button>
+                        <button
+                          onClick={() => updateFeatureStatus(feature.id, 'done')}
+                          className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-600 rounded text-sm font-medium hover:bg-green-200"
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          Complete
+                        </button>
                       </div>
+
+                      {/* Notes Toggle */}
+                      {feature.notes.length > 0 && (
+                        <button
+                          onClick={() => setExpandedFeature(expandedFeature === feature.id ? null : feature.id)}
+                          className="flex items-center gap-1 mt-2 text-gray-500 hover:text-gray-700"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform ${expandedFeature === feature.id ? 'rotate-180' : ''}`} />
+                          <StickyNote className="w-4 h-4" />
+                          Notes
+                        </button>
+                      )}
                     </div>
-                    <button
-                      onClick={() => setExpandedFeature(expandedFeature === feature.id ? null : feature.id)}
-                      className="ml-4 p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                  </div>
+                  
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => startEditFeature(feature.id)}
+                      className="p-2 text-gray-400 hover:text-blue-600"
                     >
-                      <ChevronDown
-                        className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
-                          expandedFeature === feature.id ? 'rotate-180' : ''
-                        }`}
-                      />
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => deleteFeature(feature.id)}
+                      className="p-2 text-gray-400 hover:text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* Expanded Notes Section */}
+                {/* Notes Section */}
                 {expandedFeature === feature.id && (
-                  <div className="border-t border-gray-100 bg-gray-50 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <StickyNote className="w-4 h-4 text-gray-600" />
-                      <h4 className="font-semibold text-gray-900">Notes ({feature.notes.length})</h4>
-                    </div>
-
-                    {/* Existing Notes */}
-                    <div className="space-y-2 mb-3">
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="space-y-2">
                       {feature.notes.map((note) => (
-                        <div key={note.id} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-start">
+                        <div key={note.id} className="bg-gray-50 p-3 rounded text-sm flex justify-between items-start">
                           <div className="flex-1">
-                            <p className="text-sm text-gray-700">{note.content}</p>
+                            <p className="text-gray-700">{note.content}</p>
                             <p className="text-xs text-gray-500 mt-1">
-                              {note.createdAt.toLocaleDateString()} {note.createdAt.toLocaleTimeString()}
+                              {new Date(note.createdAt).toLocaleDateString()}
                             </p>
                           </div>
                           <button
                             onClick={() => removeNote(feature.id, note.id)}
-                            className="ml-2 p-1 hover:bg-red-100 rounded text-red-500 transition-colors duration-200"
+                            className="ml-2 p-1 text-gray-400 hover:text-red-600"
                           >
-                            <X className="w-3 h-3" />
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       ))}
                     </div>
-
-                    {/* Add Note Form */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 mt-3">
                       <input
                         type="text"
                         placeholder="Add a note..."
                         value={newNote[feature.id] || ''}
                         onChange={(e) => setNewNote({ ...newNote, [feature.id]: e.target.value })}
                         onKeyPress={(e) => e.key === 'Enter' && addNote(feature.id)}
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded text-sm"
                       />
                       <button
                         onClick={() => addNote(feature.id)}
-                        disabled={!newNote[feature.id]?.trim()}
-                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 font-semibold"
+                        className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
                       >
                         Add
                       </button>
@@ -320,38 +407,40 @@ const FeatureList: React.FC = () => {
         )}
       </div>
 
-      {/* Add Feature Modal */}
+      {/* Add/Edit Todo Modal */}
       {showAddForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Add New Feature</h3>
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {editingFeature ? 'Edit Todo' : 'Add New Todo'}
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Title *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Feature title..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Enter todo title"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   rows={3}
-                  placeholder="Feature description..."
+                  placeholder="Enter description"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value as Priority })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -360,19 +449,19 @@ const FeatureList: React.FC = () => {
                 </select>
               </div>
             </div>
-            <div className="flex gap-3 mt-8">
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={cancelEdit}
+                className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleAddFeature}
                 disabled={!formData.title.trim()}
-                className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-blue-600 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                Add Feature
-              </button>
-              <button
-                onClick={() => setShowAddForm(false)}
-                className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-200"
-              >
-                Cancel
+                {editingFeature ? 'Update Todo' : 'Add Todo'}
               </button>
             </div>
           </div>

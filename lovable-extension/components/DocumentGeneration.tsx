@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { FileText, Download, RefreshCw, Sparkles, Eye, Settings, Copy, Check } from 'lucide-react';
+import { FileText, Download, RefreshCw, Sparkles, Eye, Settings, Copy, Check, Search, ChevronDown } from 'lucide-react';
+import { useDocumentStore, type DocumentType, type GeneratedDocument } from '../stores/documentStore';
 
 // Chrome extension API declarations
 declare global {
@@ -17,33 +18,38 @@ declare global {
 
 const chrome = (window as any).chrome;
 
-interface GeneratedDocument {
-  id: string;
-  title: string;
-  content: string;
-  type: DocumentType;
-  createdAt: Date;
-  url?: string;
-}
-
-type DocumentType = 'requirements' | 'specs' | 'guides' | 'api' | 'faq';
-
 const DocumentGeneration: React.FC = () => {
-  const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
+  const {
+    documents,
+    addDocument,
+    deleteDocument,
+    updateDocument,
+  } = useDocumentStore();
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedType, setSelectedType] = useState<DocumentType>('requirements');
   const [apiKey, setApiKey] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generationPrompt, setGenerationPrompt] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<DocumentType | 'all'>('all');
+  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
 
   const documentTypes = {
     requirements: { name: 'Requirements', description: 'Generate project requirements document' },
-    specs: { name: 'Specifications', description: 'Generate technical specifications' },
-    guides: { name: 'User Guides', description: 'Generate user documentation' },
-    api: { name: 'API Documentation', description: 'Generate API documentation' },
+    specs: { name: 'Specs', description: 'Generate technical specifications' },
+    guides: { name: 'Guides', description: 'Generate user documentation' },
+    api: { name: 'API', description: 'Generate API documentation' },
     faq: { name: 'FAQ', description: 'Generate frequently asked questions' },
   };
+
+  const filteredDocuments = documents.filter(doc => {
+    const searchMatch = doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       doc.content.toLowerCase().includes(searchTerm.toLowerCase());
+    const typeMatch = filterType === 'all' || doc.type === filterType;
+    return searchMatch && typeMatch;
+  });
 
   const capturePageContent = async (): Promise<string> => {
     try {
@@ -154,17 +160,14 @@ Please provide a well-structured, comprehensive document based on the above cont
         throw new Error('No content generated from API');
       }
 
-      // Create new document
-      const newDocument: GeneratedDocument = {
-        id: Date.now().toString(),
+      // Create new document using store
+      addDocument({
         title: `${documentTypes[selectedType].name} - ${new Date().toLocaleDateString()}`,
         content: generatedContent,
         type: selectedType,
         createdAt: new Date(),
         url: (JSON.parse(pageContent) as any).url,
-      };
-
-      setDocuments([newDocument, ...documents]);
+      });
       
     } catch (error) {
       console.error('Error generating documentation:', error);
@@ -200,188 +203,150 @@ Please provide a well-structured, comprehensive document based on the above cont
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${doc.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`;
+    a.download = `${doc.title}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
-  const deleteDocument = (docId: string) => {
-    setDocuments(documents.filter(doc => doc.id !== docId));
-  };
-
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="p-4 bg-white border-b border-gray-200">
+      <div className="bg-white p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium text-gray-900">Documentation</h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 text-gray-500 hover:bg-gray-100 rounded-md"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
-              onClick={generateDocumentation}
-              disabled={isGenerating || !apiKey}
-              className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isGenerating ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              {isGenerating ? 'Generating...' : 'AI Generate'}
-            </button>
-          </div>
+          <h1 className="text-xl font-semibold text-gray-900">Documentation</h1>
+          <button 
+            onClick={generateDocumentation}
+            disabled={isGenerating || !apiKey}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isGenerating ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {isGenerating ? 'Generating...' : 'AI Generate'}
+          </button>
         </div>
 
-        {/* Settings Panel */}
-        {showSettings && (
-          <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
-            <h3 className="font-medium text-gray-900 mb-3">Settings</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gemini API Key *
-                </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Enter your Gemini API key"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Get your API key from Google AI Studio
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Generation Options */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Document Type
-            </label>
-            <div className="grid grid-cols-1 gap-2">
-              {Object.entries(documentTypes).map(([key, type]) => (
-                <label key={key} className="flex items-center">
-                  <input
-                    type="radio"
-                    name="documentType"
-                    value={key}
-                    checked={selectedType === key}
-                    onChange={(e) => setSelectedType(e.target.value as DocumentType)}
-                    className="mr-2"
-                  />
-                  <div>
-                    <div className="font-medium text-sm">{type.name}</div>
-                    <div className="text-xs text-gray-500">{type.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Custom Prompt (Optional)
-            </label>
-            <textarea
-              value={generationPrompt}
-              onChange={(e) => setGenerationPrompt(e.target.value)}
-              placeholder="Add custom instructions for the AI..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              rows={3}
+        {/* Search and Filter */}
+        <div className="flex gap-3">
+          <div className="flex-1 relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500"
+              placeholder="Search documentation..."
             />
+          </div>
+          
+          <div className="relative">
+            <button
+              onClick={() => setShowTypeDropdown(!showTypeDropdown)}
+              className="flex items-center justify-between w-32 px-3 py-2 bg-gray-100 border-0 rounded-lg text-gray-900"
+            >
+              <span>{filterType === 'all' ? 'All Types' : documentTypes[filterType as DocumentType]?.name}</span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            
+            {showTypeDropdown && (
+              <div className="absolute top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                <button
+                  onClick={() => {
+                    setFilterType('all');
+                    setShowTypeDropdown(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 hover:bg-gray-50 first:rounded-t-lg ${
+                    filterType === 'all' ? 'bg-gray-50' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>All Types</span>
+                    {filterType === 'all' && <Check className="w-4 h-4" />}
+                  </div>
+                </button>
+                {Object.entries(documentTypes).map(([key, type]) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setFilterType(key as DocumentType);
+                      setShowTypeDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 hover:bg-gray-50 last:rounded-b-lg ${
+                      filterType === key ? 'bg-gray-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{type.name}</span>
+                      {filterType === key && <Check className="w-4 h-4" />}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Generated Documents */}
+      {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {documents.length === 0 ? (
-          <div className="text-center text-gray-500 mt-8">
-            <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No documentation yet</h3>
-            <p className="text-gray-500 mb-4">
-              Generate your first document by clicking the AI Generate button
-            </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left max-w-md mx-auto">
-              <div className="flex items-start gap-2">
-                <Eye className="w-5 h-5 text-blue-600 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-blue-900">How it works:</h4>
-                  <ul className="text-sm text-blue-700 mt-1 space-y-1">
-                    <li>• Reads visible content from the current tab</li>
-                    <li>• Analyzes UI elements, forms, and structure</li>
-                    <li>• Generates documentation using AI</li>
-                    <li>• Creates various document types</li>
-                  </ul>
-                </div>
-              </div>
+        {filteredDocuments.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-8 h-8 text-gray-400" />
             </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No documentation yet</h3>
+            <p className="text-gray-500">Generate your first document</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {documents.map((doc) => (
-              <div key={doc.id} className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                <div className="p-4 border-b border-gray-200">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900 mb-1">{doc.title}</h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span className="capitalize bg-gray-100 px-2 py-1 rounded text-xs">
-                          {doc.type}
-                        </span>
-                        <span>{doc.createdAt.toLocaleDateString()}</span>
-                        {doc.url && (
-                          <span className="truncate max-w-[200px]" title={doc.url}>
-                            {doc.url}
-                          </span>
-                        )}
-                      </div>
+          <div className="space-y-3">
+            {filteredDocuments.map((doc) => (
+              <div key={doc.id} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-medium text-gray-900">{doc.title}</h3>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                        {documentTypes[doc.type].name}
+                      </span>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => copyToClipboard(doc.content, doc.id)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Copy to clipboard"
-                      >
-                        {copiedId === doc.id ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-gray-500" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => downloadDocument(doc)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Download as Markdown"
-                      >
-                        <Download className="w-4 h-4 text-gray-500" />
-                      </button>
-                      <button
-                        onClick={() => deleteDocument(doc.id)}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Delete document"
-                      >
-                        <FileText className="w-4 h-4 text-red-500" />
-                      </button>
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                      {doc.content.substring(0, 150)}...
+                    </p>
+                    <div className="text-xs text-gray-500">
+                      Created {new Date(doc.createdAt).toLocaleDateString()}
                     </div>
                   </div>
-                </div>
-                <div className="p-4">
-                  <div className="prose prose-sm max-w-none">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-700 bg-gray-50 p-3 rounded border overflow-auto max-h-64">
-                      {doc.content}
-                    </pre>
+                  
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => copyToClipboard(doc.content, doc.id)}
+                      className="p-2 text-gray-400 hover:text-blue-600"
+                      title="Copy to clipboard"
+                    >
+                      {copiedId === doc.id ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => downloadDocument(doc)}
+                      className="p-2 text-gray-400 hover:text-green-600"
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteDocument(doc.id)}
+                      className="p-2 text-gray-400 hover:text-red-600"
+                      title="Delete"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -389,6 +354,41 @@ Please provide a well-structured, comprehensive document based on the above cont
           </div>
         )}
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Settings</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Enter your Gemini API key"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowSettings(false)}
+                className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
