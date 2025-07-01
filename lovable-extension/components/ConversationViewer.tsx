@@ -13,6 +13,30 @@ export const ConversationViewer: React.FC<ConversationViewerProps> = ({ classNam
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Test connection to content script
+  const testConnection = async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab.id) throw new Error('No active tab');
+      
+      const response = await new Promise<any>((resolve, reject) => {
+        chrome.tabs.sendMessage(tab.id, { action: 'ping' }, (response: any) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+      });
+      
+      console.log('🏓 Ping test result:', response);
+      return response?.pong === true;
+    } catch (error) {
+      console.error('❌ Connection test failed:', error);
+      return false;
+    }
+  };
+
   // Function to request scraping from content script
   const handleScrapeConversation = async () => {
     setLoading(true);
@@ -26,8 +50,26 @@ export const ConversationViewer: React.FC<ConversationViewerProps> = ({ classNam
         throw new Error('No active tab found');
       }
 
-      // Send message to content script
-      const response = await chrome.tabs.sendMessage(tab.id, { action: 'startScraping' });
+      console.log('📡 Testing connection to content script on tab:', tab.url);
+      
+      // First test if content script is available
+      const connectionOk = await testConnection();
+      if (!connectionOk) {
+        throw new Error('Content script not available on this page. Please reload the page or navigate to a supported website.');
+      }
+      
+      console.log('✅ Content script connection confirmed, sending scraping request...');
+
+      // Send message to content script with timeout
+      const response = await new Promise<any>((resolve, reject) => {
+        chrome.tabs.sendMessage(tab.id, { action: 'startScraping' }, (response: any) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(`Content script not available: ${chrome.runtime.lastError.message}. Please reload the page.`));
+          } else {
+            resolve(response);
+          }
+        });
+      });
       
       if (response?.success) {
         setConversationData(response.data);
@@ -36,8 +78,14 @@ export const ConversationViewer: React.FC<ConversationViewerProps> = ({ classNam
         throw new Error(response?.error || 'Failed to scrape conversation');
       }
     } catch (error: any) {
-      setError(error.message || 'Failed to scrape conversation');
+      const errorMessage = error.message || 'Failed to scrape conversation';
+      setError(errorMessage);
       console.error('❌ Scraping error:', error);
+      
+      // Additional helpful error context
+      if (errorMessage.includes('Content script not available')) {
+        setError(errorMessage + ' Make sure you\'re on a supported website and try refreshing the page.');
+      }
     } finally {
       setLoading(false);
     }

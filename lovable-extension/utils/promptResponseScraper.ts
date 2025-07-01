@@ -15,7 +15,68 @@ export interface ConversationData {
 }
 
 /**
- * Scrapes conversation data from the current page
+ * Scrapes conversation data directly from the DOM (for use in content scripts)
+ */
+export const scrapeConversationFromDOM = (): ConversationData => {
+  // Get user messages
+  const userMessageDivs = Array.from(
+    document.querySelectorAll('div[data-message-id^="umsg_01"]')
+  );
+
+  const userMessages: Message[] = [];
+  userMessageDivs.forEach((userMessageDiv) => {
+    const userText = userMessageDiv.textContent?.trim();
+
+    // Skip empty or invisible elements
+    if (!userText) return;
+
+    userMessages.push({
+      sender: "user",
+      text: userText,
+    });
+  });
+
+  // Get AI messages
+  const allAIDivs = Array.from(
+    document.querySelectorAll(
+      'div[data-message-id^="aimsg_01"] > div:nth-child(2)'
+    )
+  );
+
+  const aiMessagesMap = new Map<string, Message>();
+  allAIDivs.forEach((el) => {
+    const text = (el as HTMLElement).innerText?.trim();
+
+    // Skip empty or invisible elements
+    if (!text) return;
+    
+    if (!aiMessagesMap.has(text)) {
+      aiMessagesMap.set(text, { sender: "ai", text: text });
+    }
+  });
+
+  const aiMessages = Array.from(aiMessagesMap.values());
+
+  // Merge user and AI messages alternately
+  const mergedMessages: Message[] = [];
+  const maxLength = Math.max(userMessages.length, aiMessages.length);
+
+  for (let i = 0; i < maxLength; i++) {
+    if (userMessages[i]) mergedMessages.push(userMessages[i]);
+    if (aiMessages[i]) mergedMessages.push(aiMessages[i]);
+  }
+
+  return {
+    userMessages,
+    aiMessages,
+    mergedMessages,
+    url: window.location.href,
+    title: document.title,
+  };
+};
+
+/**
+ * Scrapes conversation data from the current page (for use in background/popup scripts)
  * Supports Claude and similar chat interfaces
  */
 export const scrapeConversation = async (): Promise<ConversationData> => {
@@ -28,63 +89,7 @@ export const scrapeConversation = async (): Promise<ConversationData> => {
 
     const result = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => {
-        // Get user messages
-        const userMessageDivs = Array.from(
-          document.querySelectorAll('div[data-message-id^="umsg_01"]')
-        );
-
-        const userMessages: Message[] = [];
-        userMessageDivs.forEach((userMessageDiv) => {
-          const userText = userMessageDiv.textContent?.trim();
-
-          // Skip empty or invisible elements
-          if (!userText) return;
-
-          userMessages.push({
-            sender: "user",
-            text: userText,
-          });
-        });
-
-        // Get AI messages
-        const allAIDivs = Array.from(
-          document.querySelectorAll(
-            'div[data-message-id^="aimsg_01"] > div:nth-child(2)'
-          )
-        );
-
-        const aiMessagesMap = new Map<string, Message>();
-        allAIDivs.forEach((el) => {
-          const text = (el as HTMLElement).innerText?.trim();
-
-          // Skip empty or invisible elements
-          if (!text) return;
-          
-          if (!aiMessagesMap.has(text)) {
-            aiMessagesMap.set(text, { sender: "ai", text: text });
-          }
-        });
-
-        const aiMessages = Array.from(aiMessagesMap.values());
-
-        // Merge user and AI messages alternately
-        const mergedMessages: Message[] = [];
-        const maxLength = Math.max(userMessages.length, aiMessages.length);
-
-        for (let i = 0; i < maxLength; i++) {
-          if (userMessages[i]) mergedMessages.push(userMessages[i]);
-          if (aiMessages[i]) mergedMessages.push(aiMessages[i]);
-        }
-
-        return {
-          userMessages,
-          aiMessages,
-          mergedMessages,
-          url: window.location.href,
-          title: document.title,
-        };
-      },
+      func: scrapeConversationFromDOM,
     });
 
     return result[0].result as ConversationData;
@@ -92,6 +97,106 @@ export const scrapeConversation = async (): Promise<ConversationData> => {
     console.error('Error scraping conversation:', error);
     throw new Error('Failed to scrape conversation data.');
   }
+};
+
+/**
+ * Generic scraper that attempts to find conversation patterns on any page (for content scripts)
+ */
+export const scrapeGenericConversationFromDOM = (): ConversationData => {
+  // Common selectors for chat applications
+  const commonUserSelectors = [
+    '[data-message-author-role="user"]',
+    '[data-role="user"]',
+    '.user-message',
+    '.human-message',
+    '[data-testid*="user"]',
+    '[class*="user"]',
+    '[data-message-id^="umsg"]'
+  ];
+
+  const commonAISelectors = [
+    '[data-message-author-role="assistant"]',
+    '[data-role="assistant"]',
+    '.ai-message',
+    '.assistant-message',
+    '.bot-message',
+    '[data-testid*="assistant"]',
+    '[class*="assistant"]',
+    '[data-message-id^="aimsg"]'
+  ];
+
+  const userMessages: Message[] = [];
+  const aiMessages: Message[] = [];
+
+  // Try to find user messages
+  for (const selector of commonUserSelectors) {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach((el) => {
+      const text = el.textContent?.trim();
+      if (text && text.length > 0) {
+        userMessages.push({
+          sender: 'user',
+          text: text
+        });
+      }
+    });
+    if (userMessages.length > 0) break;
+  }
+
+  // Try to find AI messages
+  for (const selector of commonAISelectors) {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach((el) => {
+      const text = el.textContent?.trim();
+      if (text && text.length > 0) {
+        aiMessages.push({
+          sender: 'ai',
+          text: text
+        });
+      }
+    });
+    if (aiMessages.length > 0) break;
+  }
+
+  // If specific selectors don't work, try to find patterns
+  if (userMessages.length === 0 && aiMessages.length === 0) {
+    // Look for alternating content patterns
+    const allTextElements = Array.from(document.querySelectorAll('div, p, span'))
+      .filter(el => {
+        const text = el.textContent?.trim();
+        return text && text.length > 50; // Reasonable message length
+      })
+      .slice(0, 20); // Limit to avoid performance issues
+
+    // Simple heuristic: assume alternating pattern
+    allTextElements.forEach((el, index) => {
+      const text = el.textContent?.trim();
+      if (text) {
+        if (index % 2 === 0) {
+          userMessages.push({ sender: 'user', text });
+        } else {
+          aiMessages.push({ sender: 'ai', text });
+        }
+      }
+    });
+  }
+
+  // Merge messages
+  const mergedMessages: Message[] = [];
+  const maxLength = Math.max(userMessages.length, aiMessages.length);
+
+  for (let i = 0; i < maxLength; i++) {
+    if (userMessages[i]) mergedMessages.push(userMessages[i]);
+    if (aiMessages[i]) mergedMessages.push(aiMessages[i]);
+  }
+
+  return {
+    userMessages,
+    aiMessages,
+    mergedMessages,
+    url: window.location.href,
+    title: document.title,
+  };
 };
 
 /**
@@ -107,102 +212,7 @@ export const scrapeGenericConversation = async (): Promise<ConversationData> => 
 
     const result = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => {
-        // Common selectors for chat applications
-        const commonUserSelectors = [
-          '[data-message-author-role="user"]',
-          '[data-role="user"]',
-          '.user-message',
-          '.human-message',
-          '[data-testid*="user"]',
-          '[class*="user"]',
-          '[data-message-id^="umsg"]'
-        ];
-
-        const commonAISelectors = [
-          '[data-message-author-role="assistant"]',
-          '[data-role="assistant"]',
-          '.ai-message',
-          '.assistant-message',
-          '.bot-message',
-          '[data-testid*="assistant"]',
-          '[class*="assistant"]',
-          '[data-message-id^="aimsg"]'
-        ];
-
-        const userMessages: Message[] = [];
-        const aiMessages: Message[] = [];
-
-        // Try to find user messages
-        for (const selector of commonUserSelectors) {
-          const elements = document.querySelectorAll(selector);
-          elements.forEach((el) => {
-            const text = el.textContent?.trim();
-            if (text && text.length > 0) {
-              userMessages.push({
-                sender: 'user',
-                text: text
-              });
-            }
-          });
-          if (userMessages.length > 0) break;
-        }
-
-        // Try to find AI messages
-        for (const selector of commonAISelectors) {
-          const elements = document.querySelectorAll(selector);
-          elements.forEach((el) => {
-            const text = el.textContent?.trim();
-            if (text && text.length > 0) {
-              aiMessages.push({
-                sender: 'ai',
-                text: text
-              });
-            }
-          });
-          if (aiMessages.length > 0) break;
-        }
-
-        // If specific selectors don't work, try to find patterns
-        if (userMessages.length === 0 && aiMessages.length === 0) {
-          // Look for alternating content patterns
-          const allTextElements = Array.from(document.querySelectorAll('div, p, span'))
-            .filter(el => {
-              const text = el.textContent?.trim();
-              return text && text.length > 50; // Reasonable message length
-            })
-            .slice(0, 20); // Limit to avoid performance issues
-
-          // Simple heuristic: assume alternating pattern
-          allTextElements.forEach((el, index) => {
-            const text = el.textContent?.trim();
-            if (text) {
-              if (index % 2 === 0) {
-                userMessages.push({ sender: 'user', text });
-              } else {
-                aiMessages.push({ sender: 'ai', text });
-              }
-            }
-          });
-        }
-
-        // Merge messages
-        const mergedMessages: Message[] = [];
-        const maxLength = Math.max(userMessages.length, aiMessages.length);
-
-        for (let i = 0; i < maxLength; i++) {
-          if (userMessages[i]) mergedMessages.push(userMessages[i]);
-          if (aiMessages[i]) mergedMessages.push(aiMessages[i]);
-        }
-
-        return {
-          userMessages,
-          aiMessages,
-          mergedMessages,
-          url: window.location.href,
-          title: document.title,
-        };
-      },
+      func: scrapeGenericConversationFromDOM,
     });
 
     return result[0].result as ConversationData;

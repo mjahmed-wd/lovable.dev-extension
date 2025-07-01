@@ -8,7 +8,20 @@ export default defineConfig({
   },
   vite: () => ({
     server: {
-      port: 3000
+      port: 3000,
+      strictPort: true, // Don't fallback to other ports
+      hmr: {
+        port: 3000,
+        clientPort: 3000
+      },
+      watch: {
+        usePolling: false
+      }
+    },
+    build: {
+      rollupOptions: {
+        external: []
+      }
     }
   }),
   manifest: {
@@ -22,7 +35,7 @@ export default defineConfig({
       default_path: 'sidepanel.html'
     },
     content_security_policy: {
-      extension_pages: "script-src 'self' 'wasm-unsafe-eval' http://localhost:3000 http://localhost:3001; object-src 'self'; connect-src 'self' http://localhost:3000 http://localhost:3001 ws://localhost:3000 ws://localhost:3001;"
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval' http://localhost:3000; object-src 'self'; connect-src 'self' http://localhost:3000 ws://localhost:3000;"
     }
   }
 });
