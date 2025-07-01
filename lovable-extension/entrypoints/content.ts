@@ -40,18 +40,20 @@ export default defineContentScript({
       console.error('❌ Basic test failed:', error);
     }
     
-    // Set up periodic scraping
+    // Set up periodic scraping (silent background monitoring)
     const intervalId = setInterval(async () => {
       try {
         const { scrapeConversationFromDOM } = await import('../utils/promptResponseScraper');
         const conversation = scrapeConversationFromDOM();
         
-        if (conversation && conversation.mergedMessages.length > 0) {
-          console.log('📝 Scraped conversation data:', conversation);
+        // Silent monitoring - only log if there are errors
+        // Data is available when requested via messages
+              } catch (error) {
+          // Only log actual errors, not normal "no data" cases
+          if (error instanceof Error && error.message && !error.message.includes('No conversation')) {
+            console.error('❌ Error in background scraping:', error);
+          }
         }
-      } catch (error) {
-        console.error('❌ Error scraping conversation:', error);
-      }
     }, 5000); // Check every 5 seconds
 
     // Clean up interval when context is invalidated
