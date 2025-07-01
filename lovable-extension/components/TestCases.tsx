@@ -28,7 +28,6 @@ const TestCases: React.FC = () => {
     if (!formData.title.trim()) return;
 
     if (editingCase) {
-      // Update existing test case
       updateTestCase(editingCase, {
         title: formData.title,
         description: formData.description,
@@ -38,7 +37,6 @@ const TestCases: React.FC = () => {
       });
       setEditingCase(null);
     } else {
-      // Add new test case
       addTestCase({
         title: formData.title,
         description: formData.description,
@@ -116,14 +114,14 @@ const TestCases: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col bg-white">
       {/* Header */}
-      <div className="bg-white p-4 border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
+      <div className="p-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Test Cases</h1>
           <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-              <Sparkles className="w-4 h-4" />
+            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm">
+              <Sparkles className="w-3 h-3" />
               AI Generate
             </button>
             <button 
@@ -138,9 +136,9 @@ const TestCases: React.FC = () => {
                 });
                 setShowAddForm(true);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 text-sm"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3 h-3" />
               New Test
             </button>
           </div>
@@ -151,12 +149,12 @@ const TestCases: React.FC = () => {
       <div className="flex-1 overflow-y-auto">
         {/* Add/Edit Form */}
         {showAddForm && (
-          <div className="bg-white border-b border-gray-200 p-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-white border-b border-gray-100 p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">
               {editingCase ? 'Edit Test Case' : 'Add New Test Case'}
             </h3>
             
-            <div className="space-y-4 max-w-2xl">
+            <div className="space-y-3">
               {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
@@ -164,7 +162,7 @@ const TestCases: React.FC = () => {
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500"
+                  className="w-full px-3 py-2 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 text-sm"
                   placeholder="Test case title..."
                 />
               </div>
@@ -175,21 +173,21 @@ const TestCases: React.FC = () => {
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 resize-none"
-                  rows={3}
+                  className="w-full px-3 py-2 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 resize-none text-sm"
+                  rows={2}
                   placeholder="Test description..."
                 />
               </div>
 
               {/* Test Steps */}
               <div>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700">Test Steps</label>
                   <button
                     onClick={addStep}
-                    className="flex items-center gap-2 px-3 py-1 text-sm text-blue-600 hover:text-blue-800"
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 hover:text-blue-800"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3 h-3" />
                     Add Step
                   </button>
                 </div>
@@ -197,35 +195,35 @@ const TestCases: React.FC = () => {
                 {/* Steps List */}
                 <div className="space-y-2">
                   {formData.steps.map((step, index) => (
-                    <div key={step.id} className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50">
-                      <span className="text-sm text-gray-500 w-6 flex-shrink-0">{index + 1}.</span>
+                    <div key={step.id} className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      <span className="text-xs text-gray-500 font-medium w-6">{index + 1}.</span>
                       <input
                         type="text"
                         value={step.description}
                         onChange={(e) => updateStep(step.id, e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded text-gray-900 placeholder-gray-500"
-                        placeholder={step.description}
+                        className="flex-1 px-2 py-1 bg-white border border-gray-200 rounded text-sm"
+                        placeholder={`Step ${index + 1}...`}
                       />
-                      <button
-                        onClick={() => removeStep(step.id)}
-                        className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
-                        disabled={formData.steps.length <= 1}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {formData.steps.length > 1 && (
+                        <button
+                          onClick={() => removeStep(step.id)}
+                          className="p-1 text-gray-400 hover:text-red-600 rounded"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Expected Result */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Expected Result</label>
                 <textarea
                   value={formData.expectedResult}
                   onChange={(e) => setFormData({ ...formData, expectedResult: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 resize-none"
-                  rows={3}
+                  className="w-full px-3 py-2 bg-gray-100 border-0 rounded-lg text-gray-900 placeholder-gray-500 resize-none text-sm"
+                  rows={2}
                   placeholder="Expected result..."
                 />
               </div>
@@ -236,7 +234,7 @@ const TestCases: React.FC = () => {
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value as Priority })}
-                  className="w-32 px-4 py-3 bg-gray-100 border-0 rounded-lg text-gray-900"
+                  className="w-32 px-3 py-2 bg-gray-100 border-0 rounded-lg text-gray-900 text-sm"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -245,17 +243,17 @@ const TestCases: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-2 pt-2">
                 <button
                   onClick={handleAddTestCase}
                   disabled={!formData.title.trim()}
-                  className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
                 >
                   {editingCase ? 'Update Test Case' : 'Add Test Case'}
                 </button>
                 <button
                   onClick={resetForm}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
                 >
                   Cancel
                 </button>
@@ -267,9 +265,9 @@ const TestCases: React.FC = () => {
         {/* Test Cases List */}
         <div className="p-4">
           {testCases.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-gray-400" />
+            <div className="text-center py-8">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <CheckCircle className="w-6 h-6 text-gray-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No test cases yet</h3>
               <p className="text-gray-500 mb-4">Create your first test case to get started</p>
@@ -285,19 +283,19 @@ const TestCases: React.FC = () => {
                   });
                   setShowAddForm(true);
                 }}
-                className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+                className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm"
               >
                 Create Test Case
               </button>
             </div>
-          ) : (
+          ) :
             <div className="space-y-3">
               {testCases.map((testCase) => (
                 <div key={testCase.id} className="bg-white rounded-lg border border-gray-200 p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-medium text-gray-900">{testCase.title}</h3>
+                        <h3 className="font-medium text-gray-900 text-sm">{testCase.title}</h3>
                         <span className={`px-2 py-1 rounded text-xs font-medium ${resultColors[testCase.result]}`}>
                           {testCase.result.charAt(0).toUpperCase() + testCase.result.slice(1)}
                         </span>
@@ -306,16 +304,16 @@ const TestCases: React.FC = () => {
                         </span>
                       </div>
                       {testCase.description && (
-                        <p className="text-sm text-gray-600 mb-3">{testCase.description}</p>
+                        <p className="text-sm text-gray-600 mb-2">{testCase.description}</p>
                       )}
                       
                       {/* Test Steps */}
                       {testCase.steps.length > 0 && (
                         <div className="mb-3">
-                          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Steps</h4>
-                          <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1">
+                          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Steps</h4>
+                          <ol className="list-decimal list-inside text-sm text-gray-700 space-y-0.5">
                             {testCase.steps.map((step, index) => (
-                              <li key={step.id}>{step.description}</li>
+                              <li key={step.id} className="text-xs">{step.description}</li>
                             ))}
                           </ol>
                         </div>
@@ -325,7 +323,7 @@ const TestCases: React.FC = () => {
                       {testCase.expectedResult && (
                         <div className="mb-3">
                           <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Expected Result</h4>
-                          <p className="text-sm text-gray-700">{testCase.expectedResult}</p>
+                          <p className="text-xs text-gray-700">{testCase.expectedResult}</p>
                         </div>
                       )}
 
@@ -333,47 +331,47 @@ const TestCases: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => updateTestResult(testCase.id, 'pass')}
-                          className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200"
+                          className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
                         >
                           <CheckCircle className="w-3 h-3" />
                           Pass
                         </button>
                         <button
                           onClick={() => updateTestResult(testCase.id, 'fail')}
-                          className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
+                          className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
                         >
                           <XCircle className="w-3 h-3" />
                           Fail
                         </button>
                         <button
                           onClick={() => updateTestResult(testCase.id, 'pending')}
-                          className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
+                          className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
                         >
                           <Clock className="w-3 h-3" />
                           Reset
                         </button>
                       </div>
                     </div>
-                    
-                    <div className="flex gap-1 ml-4">
-                      <button 
+
+                    <div className="flex gap-1 ml-3">
+                      <button
                         onClick={() => startEditTestCase(testCase.id)}
-                        className="p-2 text-gray-400 hover:text-blue-600"
+                        className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
                       >
-                        <Edit3 className="w-4 h-4" />
+                        <Edit3 className="w-3 h-3" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => deleteTestCase(testCase.id)}
-                        className="p-2 text-gray-400 hover:text-red-600"
+                        className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          }
         </div>
       </div>
     </div>

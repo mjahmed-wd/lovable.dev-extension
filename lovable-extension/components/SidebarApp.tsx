@@ -31,30 +31,30 @@ const SidebarApp: React.FC = () => {
     {
       id: 'features',
       name: 'Todos',
-      icon: <List className="w-5 h-5" />,
+      icon: <List className="w-4 h-4" />,
       component: FeatureList,
       count: features.length > 0 ? features.length : undefined,
     },
     {
       id: 'tests',
       name: 'Tests',
-      icon: <TestTube className="w-5 h-5" />,
+      icon: <TestTube className="w-4 h-4" />,
       component: TestCases,
       count: testCases.length > 0 ? testCases.length : undefined,
     },
     {
       id: 'docs',
       name: 'Docs',
-      icon: <FileText className="w-5 h-5" />,
+      icon: <FileText className="w-4 h-4" />,
       component: DocumentGeneration,
       count: documents.length > 0 ? documents.length : undefined,
     },
     {
       id: 'experts',
       name: 'Experts',
-      icon: <Users className="w-5 h-5" />,
+      icon: <Users className="w-4 h-4" />,
       component: ExpertHub,
-      count: undefined, // No store for experts yet
+      count: undefined,
     },
   ];
 
@@ -62,28 +62,28 @@ const SidebarApp: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Content Area */}
-      <div className="flex-1 overflow-hidden">
+      {/* Content Area - takes remaining space */}
+      <div className="flex-1 overflow-hidden min-h-0">
         <ActiveComponent />
       </div>
 
-      {/* Bottom Tab Navigation */}
-      <div className="bg-white border-t border-gray-200 px-4 py-2">
+      {/* Bottom Tab Navigation - sticky footer */}
+      <div className="flex-shrink-0 bg-white border-t border-gray-200 px-1 py-1">
         <div className="flex justify-between">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors duration-200 relative ${
+              className={`flex flex-col items-center py-1.5 px-2 rounded-md transition-colors relative min-w-0 flex-1 mx-0.5 ${
                 activeTab === tab.id
-                  ? 'text-black'
-                  : 'text-gray-400'
+                  ? 'text-black bg-gray-100'
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
               }`}
             >
               {tab.icon}
-              <span className="text-xs font-medium mt-1">{tab.name}</span>
+              <span className="text-xs font-medium mt-0.5 truncate">{tab.name}</span>
               {tab.count && (
-                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
                   {tab.count}
                 </div>
               )}
