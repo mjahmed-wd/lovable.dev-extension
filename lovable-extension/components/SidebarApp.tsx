@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { List, TestTube, FileText, Users } from 'lucide-react';
+import { List, TestTube, FileText, Users, MessageCircle } from 'lucide-react';
 
 import FeatureList from './FeatureList';
 import TestCases from './TestCases';
 import DocumentGeneration from './DocumentGeneration';
 import ExpertHub from './ExpertHub';
+import { ConversationViewer } from './ConversationViewer';
 import { useFeatureStore } from '../stores/featureStore';
 import { useTestCaseStore } from '../stores/testCaseStore';
 import { useDocumentStore } from '../stores/documentStore';
 
-type TabType = 'features' | 'tests' | 'docs' | 'experts';
+type TabType = 'conversation' | 'features' | 'tests' | 'docs' | 'experts';
 
 interface Tab {
   id: TabType;
@@ -20,7 +21,7 @@ interface Tab {
 }
 
 const SidebarApp: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('features');
+  const [activeTab, setActiveTab] = useState<TabType>('conversation');
   
   // Get real counts from stores
   const features = useFeatureStore(state => state.features);
@@ -28,6 +29,13 @@ const SidebarApp: React.FC = () => {
   const documents = useDocumentStore(state => state.documents);
 
   const tabs: Tab[] = [
+    {
+      id: 'conversation',
+      name: 'Chat',
+      icon: <MessageCircle className="w-4 h-4" />,
+      component: ConversationViewer,
+      count: undefined,
+    },
     {
       id: 'features',
       name: 'Todos',
@@ -58,7 +66,7 @@ const SidebarApp: React.FC = () => {
     },
   ];
 
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || FeatureList;
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConversationViewer;
 
   return (
     <div className="h-full flex flex-col bg-white">

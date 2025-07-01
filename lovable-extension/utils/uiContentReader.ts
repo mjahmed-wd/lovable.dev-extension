@@ -322,7 +322,7 @@ export const captureElementsBySelector = async (selector: string): Promise<Eleme
           }
           
           const parts: string[] = [];
-          let current = element;
+          let current: Element | null = element;
           
           while (current && current.nodeType === Node.ELEMENT_NODE) {
             let index = 1;
@@ -339,9 +339,9 @@ export const captureElementsBySelector = async (selector: string): Promise<Eleme
             const part = index > 1 ? `${tagName}[${index}]` : tagName;
             parts.unshift(part);
             
-            const parent = current.parentElement;
-            if (!parent || parent === document.documentElement) break;
-            current = parent;
+            const parentEl: Element | null = current.parentElement;
+            if (!parentEl || parentEl === document.documentElement) break;
+            current = parentEl;
           }
           
           return '/' + parts.join('/');
@@ -354,7 +354,7 @@ export const captureElementsBySelector = async (selector: string): Promise<Eleme
           }
           
           const parts: string[] = [];
-          let current = element;
+          let current: Element | null = element;
           
           while (current && current !== document.documentElement) {
             let selector = current.tagName.toLowerCase();
@@ -429,7 +429,7 @@ export const captureElementsByXPath = async (xpath: string): Promise<ElementData
           }
           
           const parts: string[] = [];
-          let current = element;
+          let current: Element | null = element;
           
           while (current && current.nodeType === Node.ELEMENT_NODE) {
             let index = 1;
@@ -460,7 +460,7 @@ export const captureElementsByXPath = async (xpath: string): Promise<ElementData
           }
           
           const parts: string[] = [];
-          let current = element;
+          let current: Element | null = element;
           
           while (current && current !== document.documentElement) {
             let selector = current.tagName.toLowerCase();
@@ -518,17 +518,17 @@ export const captureElementsByXPath = async (xpath: string): Promise<ElementData
           }
           
           return elements;
-        } catch (error) {
-          throw new Error(`Invalid XPath expression: ${error.message}`);
+        } catch (error: any) {
+          throw new Error(`Invalid XPath expression: ${error?.message || 'Unknown error'}`);
         }
       },
       args: [xpath],
     });
 
     return result[0].result as ElementData[];
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error capturing elements by XPath:', error);
-    throw new Error(`Failed to capture elements with XPath: ${xpath}. ${error.message}`);
+    throw new Error(`Failed to capture elements with XPath: ${xpath}. ${error?.message || 'Unknown error'}`);
   }
 };
 
@@ -555,8 +555,8 @@ export const validateXPath = async (xpath: string): Promise<{ valid: boolean; er
             null
           );
           return { valid: true };
-        } catch (error) {
-          return { valid: false, error: error.message };
+        } catch (error: any) {
+          return { valid: false, error: error?.message || 'Unknown validation error' };
         }
       },
       args: [xpath],
@@ -611,15 +611,15 @@ export const highlightElements = async (xpath: string, highlightColor: string = 
           }
           
           return count;
-        } catch (error) {
-          throw new Error(`Invalid XPath expression: ${error.message}`);
+        } catch (error: any) {
+          throw new Error(`Invalid XPath expression: ${error?.message || 'Unknown error'}`);
         }
       },
       args: [xpath, highlightColor],
     });
 
     return result[0].result as number;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error highlighting elements:', error);
     throw new Error(`Failed to highlight elements with XPath: ${xpath}`);
   }
