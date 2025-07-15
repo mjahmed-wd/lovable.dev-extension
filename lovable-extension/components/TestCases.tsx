@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
-import { Plus, CheckCircle, XCircle, Clock, Trash2, Edit3, Sparkles, Loader2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, CheckCircle, XCircle, Clock, Trash2, Edit3, Sparkles, Loader2, ChevronDown, ChevronRight, Filter, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { useTestCaseStore, type TestResult, type Priority, type TestStep } from '../stores/testCaseStore';
+import { useTestCaseStore, type TestResult, type Priority, type TestStep, type TestCase } from '../stores/testCaseStore';
 import { apiClient, type TestCaseGenerated } from '../services/api';
 import IframeContentReader from '../utils/iframeContentReader';
+import moment from 'moment';
+
+// Helper for unique tags
+const getAllTags = (testCases: TestCase[]): string[] => {
+  const tagSet = new Set<string>();
+  testCases.forEach((tc) => tc.tags && tc.tags.forEach((tag: string) => tagSet.add(tag)));
+  return Array.from(tagSet);
+};
 
 const TestCases: React.FC = () => {
+  // Store hooks
   const {
     testCases,
     addTestCase,
@@ -14,9 +23,20 @@ const TestCases: React.FC = () => {
     updateTestResult,
   } = useTestCaseStore();
 
+  // UI state
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCase, setEditingCase] = useState<string | null>(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [expandedCase, setExpandedCase] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  // Filter/search/sort state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterResult, setFilterResult] = useState<TestResult | 'all'>('all');
+  const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
+  const [filterTag, setFilterTag] = useState<string | 'all'>('all');
+  const [sortBy, setSortBy] = useState<'title' | 'priority' | 'result' | 'createdAt'>('createdAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -25,7 +45,37 @@ const TestCases: React.FC = () => {
     steps: [{ id: uuidv4(), description: 'Step 1...' }, { id: uuidv4(), description: 'Step 2...' }],
     expectedResult: '',
     priority: 'medium' as Priority,
+    tags: [] as string[],
   });
+  const [tagInput, setTagInput] = useState('');
+
+  // Filtering, searching, and sorting logic
+  const filteredAndSortedTestCases = useMemo(() => {
+    let filtered = testCases.filter(tc => {
+      const matchesResult = filterResult === 'all' || tc.result === filterResult;
+      const matchesPriority = filterPriority === 'all' || tc.priority === filterPriority;
+      const matchesTag = filterTag === 'all' || (tc.tags && tc.tags.includes(filterTag));
+      const matchesSearch =
+        tc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tc.description.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesResult && matchesPriority && matchesTag && matchesSearch;
+    });
+    filtered.sort((a, b) => {
+      if (sortBy === 'title') {
+        return sortDir === 'asc' ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title);
+      } else if (sortBy === 'priority') {
+        const order = { high: 3, medium: 2, low: 1 };
+        return sortDir === 'asc' ? order[a.priority] - order[b.priority] : order[b.priority] - order[a.priority];
+      } else if (sortBy === 'result') {
+        const order = { pass: 3, fail: 2, pending: 1 };
+        return sortDir === 'asc' ? order[a.result] - order[b.result] : order[b.result] - order[a.result];
+      } else if (sortBy === 'createdAt') {
+        return sortDir === 'asc' ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      return 0;
+    });
+    return filtered;
+  }, [testCases, filterResult, filterPriority, filterTag, searchTerm, sortBy, sortDir]);
 
   const handleAddTestCase = () => {
     if (!formData.title.trim()) return;
@@ -37,6 +87,7 @@ const TestCases: React.FC = () => {
         steps: formData.steps.filter(step => step.description.trim() && step.description !== 'Step 1...' && step.description !== 'Step 2...'),
         expectedResult: formData.expectedResult,
         priority: formData.priority,
+        tags: formData.tags,
       });
       setEditingCase(null);
     } else {
@@ -46,6 +97,7 @@ const TestCases: React.FC = () => {
         steps: formData.steps.filter(step => step.description.trim() && step.description !== 'Step 1...' && step.description !== 'Step 2...'),
         expectedResult: formData.expectedResult,
         priority: formData.priority,
+        tags: formData.tags,
       });
     }
 
@@ -59,6 +111,7 @@ const TestCases: React.FC = () => {
       steps: [{ id: uuidv4(), description: 'Step 1...' }, { id: uuidv4(), description: 'Step 2...' }],
       expectedResult: '',
       priority: 'medium',
+      tags: [],
     });
     setShowAddForm(false);
     setEditingCase(null);
@@ -91,6 +144,7 @@ const TestCases: React.FC = () => {
           steps: testSteps,
           expectedResult: aiTestCase.expectedResult,
           priority: aiTestCase.priority,
+          tags: [],
         });
       });
 
@@ -133,6 +187,7 @@ const TestCases: React.FC = () => {
         steps: errorSteps,
         expectedResult: 'Manual intervention required',
         priority: 'high',
+        tags: [],
       });
     } finally {
       setIsGeneratingAI(false);
@@ -150,6 +205,7 @@ const TestCases: React.FC = () => {
       steps: testCase.steps.length > 0 ? testCase.steps : [{ id: uuidv4(), description: 'Step 1...' }],
       expectedResult: testCase.expectedResult,
       priority: testCase.priority,
+      tags: testCase.tags || [],
     });
     setShowAddForm(true);
   };
@@ -179,6 +235,32 @@ const TestCases: React.FC = () => {
     }
   };
 
+  // Tag add handler
+  const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement> | React.MouseEvent<HTMLButtonElement>) => {
+    if (("key" in e && e.key === 'Enter') || ("type" in e && e.type === 'click')) {
+      const tag = tagInput.trim();
+      if (tag && !formData.tags.includes(tag)) {
+        setFormData({ ...formData, tags: [...formData.tags, tag] });
+      }
+      setTagInput('');
+    }
+  };
+  // Tag remove handler
+  const handleRemoveTag = (tag: string) => {
+    setFormData({ ...formData, tags: formData.tags.filter(t => t !== tag) });
+  };
+
+  // Accordion toggle handler
+  const handleAccordionToggle = (testCaseId: string) => {
+    setExpandedCase(expandedCase === testCaseId ? null : testCaseId);
+  };
+
+  const resultIcons = {
+    pass: <CheckCircle className="w-4 h-4 text-green-600" />,
+    fail: <XCircle className="w-4 h-4 text-red-600" />,
+    pending: <Clock className="w-4 h-4 text-gray-400" />,
+  };
+
   const resultColors = {
     pass: 'bg-green-100 text-green-800',
     fail: 'bg-red-100 text-red-800',
@@ -191,9 +273,12 @@ const TestCases: React.FC = () => {
     high: 'bg-red-100 text-red-800',
   };
 
+  // All tags for filter dropdown
+  const allTags: string[] = useMemo(() => getAllTags(testCases), [testCases]);
+
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Header */}
+      {/* Header: Title and AI/New Test Buttons */}
       <div className="p-4 border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Test Cases</h1>
@@ -219,6 +304,7 @@ const TestCases: React.FC = () => {
                   steps: [{ id: uuidv4(), description: 'Step 1...' }, { id: uuidv4(), description: 'Step 2...' }],
                   expectedResult: '',
                   priority: 'medium',
+                  tags: [],
                 });
                 setShowAddForm(true);
               }}
@@ -231,6 +317,79 @@ const TestCases: React.FC = () => {
         </div>
       </div>
 
+      {/* Search and Filter Bar (now below header) */}
+      <div className="p-4 border-b border-gray-100 flex flex-col gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search tests..."
+              className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+            />
+          </div>
+          <button
+            className={`p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 ${filterOpen ? 'ring-2 ring-blue-400' : ''}`}
+            onClick={() => setFilterOpen(f => !f)}
+            aria-label="Show filters"
+          >
+            <Filter className="w-5 h-5" />
+          </button>
+        </div>
+        {filterOpen && (
+          <div className="flex flex-wrap gap-2 mt-2 animate-fade-in">
+            <select
+              value={filterResult}
+              onChange={e => setFilterResult(e.target.value as TestResult | 'all')}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[120px]"
+            >
+              <option value="all">All Results</option>
+              <option value="pass">Passed</option>
+              <option value="fail">Failed</option>
+              <option value="pending">Pending</option>
+            </select>
+            <select
+              value={filterPriority}
+              onChange={e => setFilterPriority(e.target.value as Priority | 'all')}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[120px]"
+            >
+              <option value="all">All Priorities</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select
+              value={filterTag}
+              onChange={e => setFilterTag(e.target.value as string | 'all')}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[120px]"
+            >
+              <option value="all">All Tags</option>
+              {allTags.map((tag: string) => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">Sort by:</span>
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as any)}
+                className="px-2 py-1 border border-gray-300 rounded text-xs"
+              >
+                <option value="createdAt">Created</option>
+                <option value="title">Title</option>
+                <option value="priority">Priority</option>
+                <option value="result">Result</option>
+              </select>
+              <button onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')} className="p-1 text-gray-400 hover:text-gray-700">
+                {sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto">
         {/* Add/Edit Form */}
@@ -239,7 +398,6 @@ const TestCases: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900 mb-3">
               {editingCase ? 'Edit Test Case' : 'Add New Test Case'}
             </h3>
-            
             <div className="space-y-3">
               {/* Title */}
               <div>
@@ -252,7 +410,31 @@ const TestCases: React.FC = () => {
                   placeholder="Test case title..."
                 />
               </div>
-
+              {/* Tags */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                <div className="flex flex-wrap gap-2 mb-1">
+                  {formData.tags.map((tag: string) => (
+                    <span key={tag} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs flex items-center gap-1">
+                      {tag}
+                      <button type="button" className="ml-1 text-blue-400 hover:text-red-500" onClick={() => handleRemoveTag(tag)}>
+                        <XCircle className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={e => setTagInput(e.target.value)}
+                    onKeyDown={handleAddTag}
+                    placeholder="Add tag and press Enter"
+                    className="flex-1 px-3 py-2 bg-gray-100 border border-gray-200 rounded text-sm"
+                  />
+                  <button type="button" onClick={handleAddTag} className="px-3 py-2 bg-blue-600 text-white rounded text-sm">Add</button>
+                </div>
+              </div>
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -348,15 +530,15 @@ const TestCases: React.FC = () => {
           </div>
         )}
 
-        {/* Test Cases List */}
+        {/* Accordion List of Test Cases */}
         <div className="p-4">
-          {testCases.length === 0 ? (
+          {filteredAndSortedTestCases.length === 0 ? (
             <div className="text-center py-8">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <CheckCircle className="w-6 h-6 text-gray-400" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No test cases yet</h3>
-              <p className="text-gray-500 mb-4">Create your first test case to get started</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No test cases found</h3>
+              <p className="text-gray-500 mb-4">Try adjusting your filters or create a new test case</p>
               <button 
                 onClick={() => {
                   setEditingCase(null);
@@ -366,6 +548,7 @@ const TestCases: React.FC = () => {
                     steps: [{ id: uuidv4(), description: 'Step 1...' }, { id: uuidv4(), description: 'Step 2...' }],
                     expectedResult: '',
                     priority: 'medium',
+                    tags: [],
                   });
                   setShowAddForm(true);
                 }}
@@ -374,90 +557,120 @@ const TestCases: React.FC = () => {
                 Create Test Case
               </button>
             </div>
-          ) :
-            <div className="space-y-3">
-              {testCases.map((testCase) => (
-                <div key={testCase.id} className="bg-white rounded-lg border border-gray-200 p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-medium text-gray-900 text-sm">{testCase.title}</h3>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${resultColors[testCase.result]}`}>
-                          {testCase.result.charAt(0).toUpperCase() + testCase.result.slice(1)}
-                        </span>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${priorityColors[testCase.priority]}`}>
-                          {testCase.priority.charAt(0).toUpperCase() + testCase.priority.slice(1)}
-                        </span>
+          ) : (
+            <div className="space-y-2">
+              {filteredAndSortedTestCases.map((testCase) => {
+                const isExpanded = expandedCase === testCase.id;
+                return (
+                  <div key={testCase.id} className="bg-white rounded-lg border border-gray-200">
+                    {/* Accordion Header */}
+                    <button
+                      className="w-full flex flex-col px-4 py-3 focus:outline-none hover:bg-gray-50 rounded-t-lg text-left"
+                      onClick={() => handleAccordionToggle(testCase.id)}
+                      aria-expanded={isExpanded}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          <span className="font-medium text-gray-900 text-sm">{testCase.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* Status Icon */}
+                          {resultIcons[testCase.result]}
+                          {/* Priority */}
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${priorityColors[testCase.priority]}`}>{testCase.priority.charAt(0).toUpperCase() + testCase.priority.slice(1)}</span>
+                        </div>
                       </div>
-                      {testCase.description && (
-                        <p className="text-sm text-gray-600 mb-2">{testCase.description}</p>
-                      )}
-                      
-                      {/* Test Steps */}
-                      {testCase.steps.length > 0 && (
-                        <div className="mb-3">
-                          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Steps</h4>
-                          <ol className="list-decimal list-inside text-sm text-gray-700 space-y-0.5">
-                            {testCase.steps.map((step, index) => (
-                              <li key={step.id} className="text-xs">{step.description}</li>
-                            ))}
-                          </ol>
+                      {/* Tags Row */}
+                      {testCase.tags && testCase.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {testCase.tags.map((tag: string) => (
+                            <span key={tag} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">{tag}</span>
+                          ))}
                         </div>
                       )}
-
-                      {/* Expected Result */}
-                      {testCase.expectedResult && (
-                        <div className="mb-3">
-                          <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Expected Result</h4>
-                          <p className="text-xs text-gray-700">{testCase.expectedResult}</p>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-2">
+                      {/* Edit/Delete Row */}
+                      <div className="flex gap-1 mt-2 justify-end">
                         <button
-                          onClick={() => updateTestResult(testCase.id, 'pass')}
-                          className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
+                          onClick={e => { e.stopPropagation(); startEditTestCase(testCase.id); }}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
                         >
-                          <CheckCircle className="w-3 h-3" />
-                          Pass
+                          <Edit3 className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={() => updateTestResult(testCase.id, 'fail')}
-                          className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                          onClick={e => { e.stopPropagation(); deleteTestCase(testCase.id); }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors"
                         >
-                          <XCircle className="w-3 h-3" />
-                          Fail
-                        </button>
-                        <button
-                          onClick={() => updateTestResult(testCase.id, 'pending')}
-                          className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
-                        >
-                          <Clock className="w-3 h-3" />
-                          Reset
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
-                    </div>
-
-                    <div className="flex gap-1 ml-3">
-                      <button
-                        onClick={() => startEditTestCase(testCase.id)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => deleteTestCase(testCase.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
+                    </button>
+                    {/* Accordion Content */}
+                    {isExpanded && (
+                      <div className="px-6 pb-4 pt-2">
+                        {testCase.description && (
+                          <p className="text-sm text-gray-600 mb-2">{testCase.description}</p>
+                        )}
+                        {/* Test Steps */}
+                        {testCase.steps.length > 0 && (
+                          <div className="mb-3">
+                            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Steps</h4>
+                            <ol className="list-decimal list-inside text-sm text-gray-700 space-y-0.5">
+                              {testCase.steps.map((step, index) => (
+                                <li key={step.id} className="text-xs">{step.description}</li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                        {/* Expected Result */}
+                        {testCase.expectedResult && (
+                          <div className="mb-3">
+                            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Expected Result</h4>
+                            <p className="text-xs text-gray-700">{testCase.expectedResult}</p>
+                          </div>
+                        )}
+                        {/* Pass/Fail/Reset Buttons */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <button
+                            onClick={() => updateTestResult(testCase.id, 'pass')}
+                            className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
+                          >
+                            <CheckCircle className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => updateTestResult(testCase.id, 'fail')}
+                            className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                          >
+                            <XCircle className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => updateTestResult(testCase.id, 'pending')}
+                            className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
+                          >
+                            <Clock className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {/* History Section */}
+                        {testCase.history && testCase.history.length > 0 && (
+                          <div className="mt-2">
+                            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Result History</h4>
+                            <ul className="text-xs text-gray-700 space-y-1">
+                              {testCase.history.slice().reverse().map((entry, idx) => (
+                                <li key={idx} className="flex items-center gap-2">
+                                  {resultIcons[entry.result]}
+                                  <span className="text-gray-400">{moment(entry.executedAt).format('hh:mm A, DD MMMM, YYYY')}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          }
+          )}
         </div>
       </div>
     </div>

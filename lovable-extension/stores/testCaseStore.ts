@@ -21,6 +21,8 @@ export interface TestCase {
   executedAt?: Date;
   notes?: string;
   createdAt: Date;
+  history?: { result: TestResult; executedAt: Date }[];
+  tags: string[];
 }
 
 interface TestCaseStore {
@@ -42,6 +44,8 @@ export const useTestCaseStore = create<TestCaseStore>()(
           id: uuidv4(),
           result: 'pending',
           createdAt: new Date(),
+          history: [],
+          tags: testCase.tags || [],
         };
         set((state) => ({
           testCases: [...state.testCases, newTestCase],
@@ -52,7 +56,7 @@ export const useTestCaseStore = create<TestCaseStore>()(
         set((state) => ({
           testCases: state.testCases.map((testCase) =>
             testCase.id === id
-              ? { ...testCase, ...updates }
+              ? { ...testCase, ...updates, tags: updates.tags !== undefined ? updates.tags : testCase.tags }
               : testCase
           ),
         }));
@@ -72,6 +76,10 @@ export const useTestCaseStore = create<TestCaseStore>()(
                   ...testCase,
                   result,
                   executedAt: new Date(),
+                  history: [
+                    ...(testCase.history || []),
+                    { result, executedAt: new Date() },
+                  ],
                 }
               : testCase
           ),

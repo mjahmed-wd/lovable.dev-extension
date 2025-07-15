@@ -105,6 +105,11 @@ router.use(authenticate);
  *           type: string
  *         description: Filter by task ID
  *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: Filter by tags (comma-separated or array)
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer
@@ -149,7 +154,8 @@ router.get('/', [
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
   query('status').optional().isIn(['pending', 'running', 'passed', 'failed', 'skipped']).withMessage('Invalid status'),
-  query('type').optional().isIn(['unit', 'integration', 'e2e', 'manual']).withMessage('Invalid type')
+  query('type').optional().isIn(['unit', 'integration', 'e2e', 'manual']).withMessage('Invalid type'),
+  query('tags').optional().isString().withMessage('Tags must be a string (comma-separated) or array'),
 ], async (req: AuthRequest, res) => {
   try {
     const errors = validationResult(req);
@@ -170,6 +176,17 @@ router.get('/', [
     if (req.query.status) filter.status = req.query.status;
     if (req.query.type) filter.type = req.query.type;
     if (req.query.taskId) filter.taskId = req.query.taskId;
+    if (req.query.tags) {
+      let tags: string[] = [];
+      if (Array.isArray(req.query.tags)) {
+        tags = req.query.tags as string[];
+      } else if (typeof req.query.tags === 'string') {
+        tags = (req.query.tags as string).split(',').map(t => t.trim()).filter(Boolean);
+      }
+      if (tags.length > 0) {
+        filter.tags = { $in: tags };
+      }
+    }
 
     // Get tests with pagination
     const [tests, total] = await Promise.all([
