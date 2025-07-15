@@ -211,6 +211,29 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  async generateAITestCases(htmlContent: string, projectContext?: string): Promise<TestCaseGenerated[]> {
+    const response = await this.request<TestCaseGenerated[]>('/tests/generate-ai', {
+      method: 'POST',
+      body: JSON.stringify({
+        htmlContent,
+        projectContext,
+      }),
+    });
+
+    return response.data || [];
+  }
+}
+
+// Add interface for AI-generated test cases
+export interface TestCaseGenerated {
+  title: string;
+  description: string;
+  steps: Array<{
+    description: string;
+  }>;
+  expectedResult: string;
+  priority: 'low' | 'medium' | 'high';
 }
 
 // Export singleton instance

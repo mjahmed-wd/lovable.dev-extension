@@ -2,6 +2,7 @@ import express from 'express';
 import { body, validationResult, query } from 'express-validator';
 import Test from '../models/Test';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import AIService from '../services/aiService';
 
 const router = express.Router();
 
@@ -593,6 +594,136 @@ router.post('/:id/run', async (req: AuthRequest, res) => {
     res.status(500).json({
       success: false,
       error: 'Server error while running test'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/tests/generate-ai:
+ *   post:
+ *     summary: Generate test cases using AI
+ *     tags: [Tests]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - htmlContent
+ *             properties:
+ *               htmlContent:
+ *                 type: string
+ *                 description: HTML structure of the application to test
+ *               projectContext:
+ *                 type: string
+ *                 description: Optional project context information
+ *     responses:
+ *       200:
+ *         description: Test cases generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       title:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       steps:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             description:
+ *                               type: string
+ *                       expectedResult:
+ *                         type: string
+ *                       priority:
+ *                         type: string
+ *                         enum: [low, medium, high]
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: AI service error
+ */
+router.post('/generate-ai', [
+  body('htmlContent')
+    .trim()
+    .isLength({ min: 10 })
+    .withMessage('HTML content is required and must be at least 10 characters'),
+  body('projectContext')
+    .optional()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Project context cannot exceed 2000 characters')
+], async (req: AuthRequest, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { htmlContent, projectContext } = req.body;
+    const geminiKey = process.env.GEMINI_KEY;
+
+    if (!geminiKey) {
+      return res.status(500).json({
+        success: false,
+        error: 'AI service not configured properly'
+      });
+    }
+
+    const aiService = new AIService('gemini', geminiKey);
+    const generatedTestCases = await aiService.generateTestCases(htmlContent, projectContext);
+
+    res.json({
+      success: true,
+      data: generatedTestCases,
+      message: `Generated ${generatedTestCases.length} test cases`
+    });
+
+  } catch (error) {
+    console.error('Error generating AI test cases:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Server error while generating test cases';
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      if (error.message.includes('overloaded') || error.message.includes('503')) {
+        errorMessage = 'AI service is temporarily overloaded. Please try again in a few moments.';
+        statusCode = 503;
+      } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+        errorMessage = 'Rate limit exceeded. Please wait before making another request.';
+        statusCode = 429;
+      } else if (error.message.includes('All AI models failed')) {
+        errorMessage = 'All AI models are currently unavailable. Please try again later.';
+        statusCode = 503;
+      } else {
+        errorMessage = error.message;
+      }
+    }
+    
+    res.status(statusCode).json({
+      success: false,
+      error: errorMessage
     });
   }
 });

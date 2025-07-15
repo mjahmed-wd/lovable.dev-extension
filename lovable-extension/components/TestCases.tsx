@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, CheckCircle, XCircle, Clock, Trash2, Edit3, Sparkles } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Clock, Trash2, Edit3, Sparkles, Loader2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useTestCaseStore, type TestResult, type Priority, type TestStep } from '../stores/testCaseStore';
+import { apiClient, type TestCaseGenerated } from '../services/api';
+import IframeContentReader from '../utils/iframeContentReader';
 
 const TestCases: React.FC = () => {
   const {
@@ -14,6 +16,7 @@ const TestCases: React.FC = () => {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCase, setEditingCase] = useState<string | null>(null);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -59,6 +62,81 @@ const TestCases: React.FC = () => {
     });
     setShowAddForm(false);
     setEditingCase(null);
+  };
+
+  const handleAIGeneration = async () => {
+    if (isGeneratingAI) return;
+
+    setIsGeneratingAI(true);
+    
+    try {
+      // Get HTML content from the Lovable iframe
+      const htmlContent = await IframeContentReader.getIframeHTML();
+      const iframeInfo = IframeContentReader.getIframeInfo();
+      const projectContext = iframeInfo ? `Lovable project ${iframeInfo.projectId}` : undefined;
+
+      // Generate test cases using AI
+      const generatedTestCases = await apiClient.generateAITestCases(htmlContent, projectContext);
+
+      // Convert AI-generated test cases to our format and add them
+      generatedTestCases.forEach((aiTestCase: TestCaseGenerated) => {
+        const testSteps: TestStep[] = aiTestCase.steps.map(step => ({
+          id: uuidv4(),
+          description: step.description
+        }));
+
+        addTestCase({
+          title: aiTestCase.title,
+          description: aiTestCase.description,
+          steps: testSteps,
+          expectedResult: aiTestCase.expectedResult,
+          priority: aiTestCase.priority,
+        });
+      });
+
+      console.log(`Successfully generated ${generatedTestCases.length} test cases`);
+    } catch (error) {
+      console.error('Error generating AI test cases:', error);
+      
+      // Provide user-friendly error messages
+      let errorTitle = 'AI Generation Failed';
+      let errorDescription = 'Failed to generate test cases';
+      let errorSteps = [
+        { id: uuidv4(), description: 'Check console for error details' },
+        { id: uuidv4(), description: 'Try again or create test cases manually' }
+      ];
+      
+      if (error instanceof Error) {
+        if (error.message.includes('overloaded') || error.message.includes('temporarily')) {
+          errorTitle = 'AI Service Temporarily Unavailable';
+          errorDescription = 'The AI service is currently overloaded. This is usually temporary.';
+          errorSteps = [
+            { id: uuidv4(), description: 'Wait 30-60 seconds and try again' },
+            { id: uuidv4(), description: 'If problem persists, try again later' }
+          ];
+        } else if (error.message.includes('rate limit')) {
+          errorTitle = 'Rate Limit Exceeded';
+          errorDescription = 'Too many requests made recently. Please wait before trying again.';
+          errorSteps = [
+            { id: uuidv4(), description: 'Wait a few minutes before retrying' },
+            { id: uuidv4(), description: 'Consider generating fewer test cases at once' }
+          ];
+        } else {
+          errorDescription = error.message;
+        }
+      }
+      
+      // Add a fallback test case to show the error
+      addTestCase({
+        title: errorTitle,
+        description: errorDescription,
+        steps: errorSteps,
+        expectedResult: 'Manual intervention required',
+        priority: 'high',
+      });
+    } finally {
+      setIsGeneratingAI(false);
+    }
   };
 
   const startEditTestCase = (testCaseId: string) => {
@@ -120,9 +198,17 @@ const TestCases: React.FC = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Test Cases</h1>
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm">
-              <Sparkles className="w-3 h-3" />
-              AI Generate
+            <button 
+              onClick={handleAIGeneration}
+              disabled={isGeneratingAI}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {isGeneratingAI ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Sparkles className="w-3 h-3" />
+              )}
+              {isGeneratingAI ? 'Generating...' : 'AI Generate'}
             </button>
             <button 
               onClick={() => {
