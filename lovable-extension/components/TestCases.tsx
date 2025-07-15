@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, CheckCircle, XCircle, Clock, Trash2, Edit3, Sparkles, Loader2, ChevronDown, ChevronRight, Filter, Search, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Clock, Trash2, Edit3, Sparkles, Loader2, ChevronDown, ChevronRight, Filter, Search, ArrowUp, ArrowDown, Pause, Play, StopCircle, Save } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useTestCaseStore, type TestResult, type Priority, type TestStep, type TestCase } from '../stores/testCaseStore';
 import { apiClient, type TestCaseGenerated } from '../services/api';
@@ -12,6 +12,15 @@ const getAllTags = (testCases: TestCase[]): string[] => {
   testCases.forEach((tc) => tc.tags && tc.tags.forEach((tag: string) => tagSet.add(tag)));
   return Array.from(tagSet);
 };
+
+// Session state types
+interface TestSession {
+  id: string;
+  name?: string;
+  status: 'active' | 'paused' | 'finished' | 'terminated';
+  startedAt: string;
+  finishedAt?: string;
+}
 
 const TestCases: React.FC = () => {
   // Store hooks
@@ -48,6 +57,12 @@ const TestCases: React.FC = () => {
     tags: [] as string[],
   });
   const [tagInput, setTagInput] = useState('');
+
+  // Test session state
+  const [session, setSession] = useState<TestSession | null>(null);
+  const [showSessionNameInput, setShowSessionNameInput] = useState(false);
+  const [sessionName, setSessionName] = useState('');
+  const [sessionHistory, setSessionHistory] = useState<{ [testCaseId: string]: { sessionId: string | null, result: TestResult, executedAt: string }[] }>({});
 
   // Filtering, searching, and sorting logic
   const filteredAndSortedTestCases = useMemo(() => {
@@ -255,6 +270,66 @@ const TestCases: React.FC = () => {
     setExpandedCase(expandedCase === testCaseId ? null : testCaseId);
   };
 
+  // Session handlers
+  const handleStartSession = () => {
+    if (session && (session.status === 'active' || session.status === 'paused')) return;
+    const newSession: TestSession = {
+      id: uuidv4(),
+      status: 'active',
+      startedAt: new Date().toISOString(),
+    };
+    setSession(newSession);
+  };
+
+  const handlePauseSession = () => {
+    if (session && session.status === 'active') {
+      setSession({ ...session, status: 'paused' });
+    }
+  };
+
+  const handleResumeSession = () => {
+    if (session && session.status === 'paused') {
+      setSession({ ...session, status: 'active' });
+    }
+  };
+
+  const handleTerminateSession = () => {
+    if (session) {
+      setSession({ ...session, status: 'terminated', finishedAt: new Date().toISOString() });
+    }
+  };
+
+  const handleFinishSession = () => {
+    setShowSessionNameInput(true);
+  };
+
+  const handleSaveSessionName = () => {
+    if (session) {
+      setSession({ ...session, status: 'finished', name: sessionName, finishedAt: new Date().toISOString() });
+      setShowSessionNameInput(false);
+      setSessionName('');
+    }
+  };
+
+  // Patch updateTestResult to store session info in sessionHistory
+  const updateTestResultWithSession = (testCaseId: string, result: TestResult) => {
+    updateTestResult(testCaseId, result);
+    setSessionHistory(prev => {
+      const prevHistory = prev[testCaseId] || [];
+      return {
+        ...prev,
+        [testCaseId]: [
+          ...prevHistory,
+          {
+            sessionId: session && (session.status === 'active' || session.status === 'paused') ? session.id : null,
+            result,
+            executedAt: new Date().toISOString(),
+          },
+        ],
+      };
+    });
+  };
+
   const resultIcons = {
     pass: <CheckCircle className="w-4 h-4 text-green-600" />,
     fail: <XCircle className="w-4 h-4 text-red-600" />,
@@ -337,6 +412,15 @@ const TestCases: React.FC = () => {
           >
             <Filter className="w-5 h-5" />
           </button>
+          {/* Add session start button */}
+          <button
+            className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50"
+            onClick={handleStartSession}
+            aria-label="Start test session"
+            disabled={!!(session && (session.status === 'active' || session.status === 'paused'))}
+          >
+            <Plus className="w-5 h-5 text-green-600" />
+          </button>
         </div>
         {filterOpen && (
           <div className="flex flex-wrap gap-2 mt-2 animate-fade-in">
@@ -386,6 +470,31 @@ const TestCases: React.FC = () => {
                 {sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
               </button>
             </div>
+          </div>
+        )}
+        {/* Session Controls moved below search/filter */}
+        {(session && (session.status === 'active' || session.status === 'paused')) && (
+          <div className="flex gap-2 items-center bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 mt-2">
+            <span className="text-xs font-medium text-gray-700">Session: {session.name || 'Untitled'}</span>
+            {session.status === 'active' ? (
+              <button onClick={handlePauseSession} className="p-1 text-yellow-600 hover:bg-yellow-50 rounded" title="Pause Session"><Pause className="w-4 h-4" /></button>
+            ) : (
+              <button onClick={handleResumeSession} className="p-1 text-green-600 hover:bg-green-50 rounded" title="Resume Session"><Play className="w-4 h-4" /></button>
+            )}
+            <button onClick={handleFinishSession} className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Finish Session"><Save className="w-4 h-4" /></button>
+            <button onClick={handleTerminateSession} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Terminate Session"><StopCircle className="w-4 h-4" /></button>
+          </div>
+        )}
+        {showSessionNameInput && (
+          <div className="flex gap-2 items-center bg-white border border-gray-200 rounded-lg px-2 py-1 mt-2">
+            <input
+              type="text"
+              value={sessionName}
+              onChange={e => setSessionName(e.target.value)}
+              placeholder="Session name..."
+              className="px-2 py-1 text-sm border border-gray-200 rounded"
+            />
+            <button onClick={() => { handleSaveSessionName(); setShowSessionNameInput(false); }} className="px-2 py-1 bg-blue-600 text-white rounded text-xs">Save</button>
           </div>
         )}
       </div>
@@ -559,8 +668,24 @@ const TestCases: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredAndSortedTestCases.map((testCase) => {
+              {filteredAndSortedTestCases.map((testCase, idx) => {
                 const isExpanded = expandedCase === testCase.id;
+                // Get session-aware history for this test case
+                const caseHistory = sessionHistory[testCase.id] || testCase.history || [];
+                // Handler for result button click
+                const handleResultClick = (result: TestResult) => {
+                  updateTestResultWithSession(testCase.id, result);
+                  // Close the accordion
+                  setExpandedCase(null);
+                  // If session is active, open the next test accordion
+                  if (session && session.status === 'active') {
+                    // Find the next test case in the filtered list
+                    const nextIdx = filteredAndSortedTestCases.findIndex(tc => tc.id === testCase.id) + 1;
+                    if (nextIdx < filteredAndSortedTestCases.length) {
+                      setTimeout(() => setExpandedCase(filteredAndSortedTestCases[nextIdx].id), 200); // slight delay for UX
+                    }
+                  }
+                };
                 return (
                   <div key={testCase.id} className="bg-white rounded-lg border border-gray-200">
                     {/* Accordion Header */}
@@ -632,33 +757,38 @@ const TestCases: React.FC = () => {
                         {/* Pass/Fail/Reset Buttons */}
                         <div className="flex items-center gap-2 mb-2">
                           <button
-                            onClick={() => updateTestResult(testCase.id, 'pass')}
+                            onClick={() => handleResultClick('pass')}
                             className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200"
                           >
                             <CheckCircle className="w-3 h-3" />
                           </button>
                           <button
-                            onClick={() => updateTestResult(testCase.id, 'fail')}
+                            onClick={() => handleResultClick('fail')}
                             className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
                           >
                             <XCircle className="w-3 h-3" />
                           </button>
                           <button
-                            onClick={() => updateTestResult(testCase.id, 'pending')}
+                            onClick={() => handleResultClick('pending')}
                             className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"
                           >
                             <Clock className="w-3 h-3" />
                           </button>
                         </div>
                         {/* History Section */}
-                        {testCase.history && testCase.history.length > 0 && (
+                        {caseHistory.length > 0 && (
                           <div className="mt-2">
                             <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Result History</h4>
                             <ul className="text-xs text-gray-700 space-y-1">
-                              {testCase.history.slice().reverse().map((entry, idx) => (
+                              {caseHistory.slice().reverse().map((entry, idx) => (
                                 <li key={idx} className="flex items-center gap-2">
                                   {resultIcons[entry.result]}
                                   <span className="text-gray-400">{moment(entry.executedAt).format('hh:mm A, DD MMMM, YYYY')}</span>
+                                  {entry.sessionId ? (
+                                    <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xxs">{(session && session.id === entry.sessionId && session.name) || 'Session'}</span>
+                                  ) : (
+                                    <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xxs">Independent</span>
+                                  )}
                                 </li>
                               ))}
                             </ul>
