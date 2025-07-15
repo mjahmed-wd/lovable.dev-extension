@@ -35,8 +35,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (token) {
         try {
           const response = await apiClient.getCurrentUser();
-          if (response.success && response.data) {
-            setUser(response.data.user);
+          if (response.success) {
+            // Handle direct response format: { success: true, user: {...} }
+            const user = (response as any).user;
+            if (user) {
+              setUser(user);
+            } else {
+              // Invalid response format, remove token
+              TokenStorage.removeToken();
+            }
           } else {
             // Invalid token, remove it
             TokenStorage.removeToken();
@@ -57,10 +64,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       const response = await apiClient.login({ email, password });
       
-      if (response.success && response.data) {
-        TokenStorage.setToken(response.data.token);
-        setUser(response.data.user);
-        return { success: true };
+      if (response.success) {
+        // Handle direct response format: { success: true, token: "...", user: {...} }
+        const token = (response as any).token;
+        const user = (response as any).user;
+        
+        if (token && user) {
+          TokenStorage.setToken(token);
+          setUser(user);
+          return { success: true };
+        } else {
+          return { success: false, error: 'Invalid response format' };
+        }
       } else {
         return { success: false, error: response.error || 'Login failed' };
       }
@@ -80,10 +95,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       const response = await apiClient.register({ name, email, password });
       
-      if (response.success && response.data) {
-        TokenStorage.setToken(response.data.token);
-        setUser(response.data.user);
-        return { success: true };
+      if (response.success) {
+        // Handle direct response format: { success: true, token: "...", user: {...} }
+        const token = (response as any).token;
+        const user = (response as any).user;
+        
+        if (token && user) {
+          TokenStorage.setToken(token);
+          setUser(user);
+          return { success: true };
+        } else {
+          return { success: false, error: 'Invalid response format' };
+        }
       } else {
         return { success: false, error: response.error || 'Registration failed' };
       }
