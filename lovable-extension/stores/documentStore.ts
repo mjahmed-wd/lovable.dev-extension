@@ -3,6 +3,14 @@ import { persist } from 'zustand/middleware';
 
 export type DocumentType = 'requirements' | 'specs' | 'guides' | 'api' | 'faq';
 
+export interface ConversationData {
+  userMessages: Array<{ sender: 'user'; text: string; timestamp?: string }>;
+  aiMessages: Array<{ sender: 'ai'; text: string; timestamp?: string }>;
+  mergedMessages: Array<{ sender: 'user' | 'ai'; text: string; timestamp?: string }>;
+  url?: string;
+  title?: string;
+}
+
 export interface GeneratedDocument {
   id: string;
   title: string;
@@ -10,6 +18,10 @@ export interface GeneratedDocument {
   type: DocumentType;
   createdAt: Date;
   url?: string;
+  conversationData?: ConversationData;
+  htmlContent?: string;
+  projectContext?: string;
+  documentId?: string; // Backend document ID for DOCX generation
 }
 
 interface DocumentStore {

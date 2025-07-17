@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { FileText, Download, RefreshCw, Sparkles, Eye, Settings, Copy, Check, Search, ChevronDown, Code, Globe, Navigation, Heading, Trash2 } from 'lucide-react';
-import { useDocumentStore, type DocumentType, type GeneratedDocument } from '../stores/documentStore';
+import { useDocumentStore, type DocumentType, type GeneratedDocument, type ConversationData } from '../stores/documentStore';
+import { apiClient } from '../services/api';
+import { scrapeConversation, ConversationData as ScrapedConversationData } from '../utils/promptResponseScraper';
+import IframeContentReader from '../utils/iframeContentReader';
+
+import { saveAs } from 'file-saver';
 
 // Chrome extension API declarations
 declare global {
@@ -47,16 +52,14 @@ const DocumentGeneration: React.FC = () => {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedType, setSelectedType] = useState<DocumentType>('requirements');
-  const [apiKey, setApiKey] = useState('');
-  const [showSettings, setShowSettings] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generationPrompt, setGenerationPrompt] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<DocumentType | 'all'>('all');
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [capturedContent, setCapturedContent] = useState<PageContent | null>(null);
-  const [showContent, setShowContent] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const documentTypes = {
@@ -73,6 +76,8 @@ const DocumentGeneration: React.FC = () => {
     const typeMatch = filterType === 'all' || doc.type === filterType;
     return searchMatch && typeMatch;
   });
+
+
 
   const capturePageContent = async (): Promise<PageContent> => {
     try {
@@ -132,7 +137,6 @@ const DocumentGeneration: React.FC = () => {
 
       const pageContent = result[0].result as PageContent;
       setCapturedContent(pageContent);
-      setShowContent(true);
       return pageContent;
     } catch (error) {
       console.error('Error capturing page content:', error);
@@ -152,61 +156,91 @@ const DocumentGeneration: React.FC = () => {
   };
 
   const generateDocumentation = async () => {
-    if (!apiKey) {
-      alert('Please set your Gemini API key in settings');
-      return;
-    }
-
     setIsGenerating(true);
     
     try {
+      // Attempt to capture conversation data silently
+      let conversationData: ConversationData | null = null;
+      try {
+        const scrapedConversation = await scrapeConversation();
+        
+        // Convert to store format
+        conversationData = {
+          userMessages: scrapedConversation.userMessages.map(msg => ({
+            sender: 'user' as const,
+            text: msg.text,
+            timestamp: msg.timestamp
+          })),
+          aiMessages: scrapedConversation.aiMessages.map(msg => ({
+            sender: 'ai' as const,
+            text: msg.text,
+            timestamp: msg.timestamp
+          })),
+          mergedMessages: scrapedConversation.mergedMessages.map(msg => ({
+            sender: msg.sender,
+            text: msg.text,
+            timestamp: msg.timestamp
+          })),
+          url: scrapedConversation.url,
+          title: scrapedConversation.title
+        };
+
+        // Show alert if no conversation data found
+        if (!conversationData.mergedMessages || conversationData.mergedMessages.length === 0) {
+          alert('No conversation data found on this page. The document will be generated using only the page content.');
+          conversationData = null;
+        }
+      } catch (error) {
+        console.log('No conversation data available:', error);
+        alert('No conversation data found on this page. The document will be generated using only the page content.');
+      }
+
       // Capture current page content
-      const pageContent = await capturePageContent();
+      let pageContent: PageContent;
+      let htmlContent: string;
       
-      // Prepare the prompt based on document type and page content
-      const basePrompt = generationPrompt || getDefaultPrompt(selectedType);
-      const fullPrompt = `${basePrompt}
-
-Please analyze the following web page content and generate ${documentTypes[selectedType].description.toLowerCase()}:
-
-Page Content:
-${JSON.stringify(pageContent, null, 2)}
-
-Please provide a well-structured, comprehensive document based on the above content.`;
-
-      // Call Gemini API
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: fullPrompt
-            }]
-          }]
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      try {
+        pageContent = await capturePageContent();
+        htmlContent = JSON.stringify(pageContent, null, 2);
+      } catch (error) {
+        // Fallback: try to get iframe content if page capture fails
+        try {
+          htmlContent = await IframeContentReader.getIframeHTML();
+          const iframeInfo = IframeContentReader.getIframeInfo();
+          pageContent = {
+            url: iframeInfo?.url || window.location.href,
+            title: iframeInfo?.projectId || 'Lovable Project',
+            bodyText: htmlContent.substring(0, 5000),
+            forms: [],
+            navigation: [],
+            headings: []
+          };
+        } catch (iframeError) {
+          throw new Error('Failed to capture both page content and iframe content. Please ensure you\'re on a valid web page.');
+        }
       }
 
-      const data = await response.json();
-      const generatedContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      // Use the API wrapper to generate the document
+      const generatedDocument = await apiClient.generateAIDocument(
+        htmlContent,
+        conversationData || undefined,
+        selectedType,
+        generationPrompt || undefined,
+        'Web application documentation',
+        pageContent.url
+      );
 
-      if (!generatedContent) {
-        throw new Error('No content generated from API');
-      }
-
-      // Add the generated document
+      // Add the generated document with enhanced data
       addDocument({
-        title: `${documentTypes[selectedType].name} - ${pageContent.title || 'Untitled'}`,
-        content: generatedContent,
+        title: generatedDocument.title || `${documentTypes[selectedType].name} - ${pageContent.title || 'Untitled'}`,
+        content: generatedDocument.content,
         type: selectedType,
         url: pageContent.url,
+        conversationData: conversationData || undefined,
+        htmlContent,
+        projectContext: 'Web application documentation',
         createdAt: new Date(),
+        documentId: generatedDocument.documentId, // Store backend document ID for DOCX generation
       });
 
       setGenerationPrompt('');
@@ -240,16 +274,29 @@ Please provide a well-structured, comprehensive document based on the above cont
     }
   };
 
-  const downloadDocument = (doc: GeneratedDocument) => {
-    const blob = new Blob([doc.content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${doc.title}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+
+  const generateDocxFile = async (doc: GeneratedDocument) => {
+    try {
+      setIsGeneratingDocx(true);
+      
+      if (!doc.documentId) {
+        alert('Document ID not found. Please regenerate the document.');
+        return;
+      }
+
+      // Download DOCX from backend
+      const blob = await apiClient.downloadDocx(doc.documentId);
+      
+      // Save the file
+      saveAs(blob, `${doc.title}.docx`);
+      
+    } catch (error) {
+      console.error('Error generating DOCX:', error);
+      alert('Failed to generate DOCX file. Please try again.');
+    } finally {
+      setIsGeneratingDocx(false);
+    }
   };
 
   return (
@@ -258,29 +305,7 @@ Please provide a well-structured, comprehensive document based on the above cont
       <div className="p-4 border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-semibold text-gray-900">Documentation</h1>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
         </div>
-
-        {/* Settings Panel */}
-        {showSettings && (
-          <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Gemini API Key
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter your Gemini API key..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            />
-          </div>
-        )}
 
         {/* Generation Controls */}
         <div className="space-y-3">
@@ -315,7 +340,7 @@ Please provide a well-structured, comprehensive document based on the above cont
             
             <button
               onClick={generateDocumentation}
-              disabled={isGenerating || !apiKey}
+              disabled={isGenerating}
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
             >
               {isGenerating ? (
@@ -334,6 +359,7 @@ Please provide a well-structured, comprehensive document based on the above cont
             className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             rows={2}
           />
+
         </div>
       </div>
 
@@ -399,6 +425,7 @@ Please provide a well-structured, comprehensive document based on the above cont
                           {documentTypes[doc.type].name}
                         </span>
                                                  <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
+
                          {doc.url && (
                            <a
                              href={doc.url}
@@ -425,10 +452,16 @@ Please provide a well-structured, comprehensive document based on the above cont
                         )}
                       </button>
                       <button
-                        onClick={() => downloadDocument(doc)}
-                        className="p-1.5 text-gray-400 hover:text-green-600 rounded transition-colors"
+                        onClick={() => generateDocxFile(doc)}
+                        disabled={isGeneratingDocx}
+                        className="p-1.5 text-gray-400 hover:text-green-600 rounded transition-colors disabled:text-gray-300 disabled:cursor-not-allowed"
+                        title={isGeneratingDocx ? "Generating DOCX..." : "Download as DOCX"}
                       >
-                        <Download className="w-3 h-3" />
+                        {isGeneratingDocx ? (
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Download className="w-3 h-3" />
+                        )}
                       </button>
                       <button
                         onClick={() => deleteDocument(doc.id)}
@@ -449,54 +482,8 @@ Please provide a well-structured, comprehensive document based on the above cont
         </div>
       </div>
 
-      {/* Captured Content Modal */}
-      {showContent && capturedContent && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-5 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Captured Page Content</h3>
-              <button
-                onClick={() => setShowContent(false)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-colors"
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className="space-y-3 text-sm">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-1">URL:</h4>
-                <p className="text-gray-600 break-all">{capturedContent.url}</p>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-1">Title:</h4>
-                <p className="text-gray-600">{capturedContent.title}</p>
-              </div>
-              
-              {capturedContent.headings.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-1">Headings:</h4>
-                  <div className="text-gray-600 max-h-20 overflow-y-auto">
-                    {capturedContent.headings.map((heading, index) => (
-                      <div key={index} className="text-xs">
-                        {heading.level}: {heading.text}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-1">Content Preview:</h4>
-                <div className="text-gray-600 bg-gray-50 p-2 rounded max-h-32 overflow-y-auto text-xs">
-                  {capturedContent.bodyText.substring(0, 500)}...
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
+
     </div>
   );
 };

@@ -11,6 +11,7 @@ import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth';
 import taskRoutes from './routes/tasks';
 import testRoutes from './routes/tests';
+import documentRoutes from './routes/documents';
 
 // Load environment variables
 dotenv.config();
@@ -87,6 +88,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/tests', testRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

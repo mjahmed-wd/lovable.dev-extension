@@ -223,6 +223,54 @@ class ApiClient {
 
     return response.data || [];
   }
+
+  async generateAIDocument(
+    htmlContent: string,
+    conversationData?: ConversationData,
+    documentType?: string,
+    customPrompt?: string,
+    projectContext?: string,
+    url?: string
+  ): Promise<DocumentGenerated> {
+    const response = await this.request<DocumentGenerated>('/documents/generate-ai', {
+      method: 'POST',
+      body: JSON.stringify({
+        htmlContent,
+        conversationData,
+        documentType,
+        customPrompt,
+        projectContext,
+        url,
+      }),
+    });
+
+    return response.data || { title: 'Error', content: 'Failed to generate document', type: 'requirements' };
+  }
+
+  async getDocuments(): Promise<StoredDocument[]> {
+    const response = await this.request<StoredDocument[]>('/documents', {
+      method: 'GET',
+    });
+
+    return response.data || [];
+  }
+
+  async downloadDocx(documentId: string): Promise<Blob> {
+    const token = TokenStorage.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/documents/${documentId}/docx`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.blob();
+  }
 }
 
 // Add interface for AI-generated test cases
@@ -234,6 +282,37 @@ export interface TestCaseGenerated {
   }>;
   expectedResult: string;
   priority: 'low' | 'medium' | 'high';
+}
+
+// Add interface for AI-generated documents
+export interface DocumentGenerated {
+  title: string;
+  content: string;
+  type: 'requirements' | 'specs' | 'guides' | 'api' | 'faq';
+  documentId?: string;
+  createdAt?: string;
+}
+
+// Add interface for stored documents
+export interface StoredDocument {
+  _id: string;
+  title: string;
+  content: string;
+  documentType: 'requirement' | 'specification' | 'plan' | 'documentation' | 'other';
+  customPrompt?: string;
+  url?: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Add interface for conversation data
+export interface ConversationData {
+  userMessages: Array<{ sender: 'user'; text: string; timestamp?: string }>;
+  aiMessages: Array<{ sender: 'ai'; text: string; timestamp?: string }>;
+  mergedMessages: Array<{ sender: 'user' | 'ai'; text: string; timestamp?: string }>;
+  url?: string;
+  title?: string;
 }
 
 // Export singleton instance
