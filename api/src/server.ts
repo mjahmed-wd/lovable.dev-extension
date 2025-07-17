@@ -12,6 +12,7 @@ import authRoutes from './routes/auth';
 import taskRoutes from './routes/tasks';
 import testRoutes from './routes/tests';
 import documentRoutes from './routes/documents';
+import expertRoutes from './routes/experts';
 
 // Load environment variables
 dotenv.config();
@@ -89,6 +90,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/tests', testRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/experts', expertRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

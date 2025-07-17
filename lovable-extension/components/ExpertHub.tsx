@@ -1,446 +1,585 @@
 import React, { useState } from 'react';
-import { Users, Star, MessageCircle, Clock, DollarSign, Search, Filter, Mail, Phone, Globe, MapPin, UserPlus, Users2, Headphones } from 'lucide-react';
+import { UserPlus, Briefcase, CheckCircle, AlertCircle, Loader, ArrowLeftCircle } from 'lucide-react';
+import { apiClient, HireExpertRequest, RegisterExpertRequest } from '../services/api';
 
-interface Expert {
-  id: string;
-  name: string;
-  title: string;
-  skills: string[];
-  rating: number;
-  reviews: number;
-  hourlyRate: number;
-  location: string;
-  availability: 'available' | 'busy' | 'offline';
-  bio: string;
-  portfolio?: string;
-  email?: string;
-  phone?: string;
-  languages: string[];
-  responseTime: string;
-  completedProjects: number;
-}
-
-interface ContactRequest {
-  expertId: string;
-  message: string;
-  projectType: string;
-  budget: string;
-  timeline: string;
-  status: 'pending' | 'accepted' | 'declined';
-  createdAt: Date;
-}
+type FormType = 'none' | 'hire' | 'register';
+type SubmissionStatus = 'idle' | 'loading' | 'success' | 'error';
 
 const ExpertHub: React.FC = () => {
-  const [experts] = useState<Expert[]>([
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      title: 'Senior Full-Stack Developer',
-      skills: ['React', 'Node.js', 'TypeScript', 'AWS', 'MongoDB'],
-      rating: 4.9,
-      reviews: 127,
-      hourlyRate: 85,
-      location: 'San Francisco, CA',
-      availability: 'available',
-      bio: 'Experienced full-stack developer with 8+ years building scalable web applications. Specialized in React ecosystem and cloud architecture.',
-      portfolio: 'https://sarahjohnson.dev',
-      email: 'sarah@example.com',
-      languages: ['English', 'Spanish'],
-      responseTime: '< 2 hours',
-      completedProjects: 150,
-    },
-    {
-      id: '2',
-      name: 'Michael Chen',
-      title: 'DevOps Engineer & Cloud Architect',
-      skills: ['Docker', 'Kubernetes', 'AWS', 'Terraform', 'CI/CD'],
-      rating: 4.8,
-      reviews: 89,
-      hourlyRate: 95,
-      location: 'Seattle, WA',
-      availability: 'busy',
-      bio: 'DevOps specialist helping companies scale their infrastructure. Expert in containerization and automated deployment pipelines.',
-      portfolio: 'https://michaelchen.cloud',
-      email: 'michael@example.com',
-      languages: ['English', 'Mandarin'],
-      responseTime: '< 4 hours',
-      completedProjects: 75,
-    },
-    {
-      id: '3',
-      name: 'Elena Rodriguez',
-      title: 'UX/UI Designer & Frontend Developer',
-      skills: ['Figma', 'React', 'CSS', 'Design Systems', 'User Research'],
-      rating: 4.9,
-      reviews: 203,
-      hourlyRate: 75,
-      location: 'Austin, TX',
-      availability: 'available',
-      bio: 'Creative designer with a strong frontend development background. I create beautiful, user-centered digital experiences.',
-      portfolio: 'https://elenadesigns.com',
-      email: 'elena@example.com',
-      languages: ['English', 'Spanish', 'Portuguese'],
-      responseTime: '< 1 hour',
-      completedProjects: 180,
-    },
-    {
-      id: '4',
-      name: 'Alex Thompson',
-      title: 'Mobile App Developer',
-      skills: ['React Native', 'Flutter', 'iOS', 'Android', 'Firebase'],
-      rating: 4.7,
-      reviews: 156,
-      hourlyRate: 80,
-      location: 'Toronto, ON',
-      availability: 'available',
-      bio: 'Mobile development expert with expertise in cross-platform solutions. Built 50+ mobile apps for startups and enterprises.',
-      portfolio: 'https://alexapps.dev',
-      email: 'alex@example.com',
-      languages: ['English', 'French'],
-      responseTime: '< 3 hours',
-      completedProjects: 95,
-    },
-  ]);
+  const [activeForm, setActiveForm] = useState<FormType>('none');
+  const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>('idle');
+  const [message, setMessage] = useState('');
 
-  const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
-  const [selectedExpert, setSelectedExpert] = useState<Expert | null>(null);
-  const [showContactForm, setShowContactForm] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [skillFilter, setSkillFilter] = useState('');
-  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'busy'>('all');
-  const [maxRate, setMaxRate] = useState<number>(200);
-
-  // Contact form state
-  const [contactForm, setContactForm] = useState({
-    message: '',
+  // Hire Expert Form State
+  const [hireForm, setHireForm] = useState<HireExpertRequest>({
+    name: '',
+    email: '',
+    company: '',
     projectType: '',
     budget: '',
     timeline: '',
+    message: '',
   });
 
-  const availabilityColors = {
-    available: 'bg-green-100 text-green-800',
-    busy: 'bg-yellow-100 text-yellow-800',
-    offline: 'bg-gray-100 text-gray-800',
-  };
-
-  const availabilityIcons = {
-    available: '🟢',
-    busy: '🟡',
-    offline: '⚫',
-  };
-
-  // Get all unique skills for filter
-  const allSkills = [...new Set(experts.flatMap(expert => expert.skills))];
-
-  const filteredExperts = experts.filter(expert => {
-    const nameMatch = expert.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                     expert.title.toLowerCase().includes(searchTerm.toLowerCase());
-    const skillMatch = skillFilter === '' || expert.skills.some(skill => 
-      skill.toLowerCase().includes(skillFilter.toLowerCase()));
-    const availabilityMatch = availabilityFilter === 'all' || expert.availability === availabilityFilter;
-    const rateMatch = expert.hourlyRate <= maxRate;
-    
-    return nameMatch && skillMatch && availabilityMatch && rateMatch;
+  // Register Expert Form State
+  const [registerForm, setRegisterForm] = useState<RegisterExpertRequest>({
+    name: '',
+    email: '',
+    phone: '',
+    skills: [],
+    experience: '',
+    portfolio: '',
+    hourlyRate: '',
+    bio: '',
   });
+  const [newSkill, setNewSkill] = useState('');
 
-  const availableCount = experts.filter(e => e.availability === 'available').length;
-
-  const handleContactExpert = (expert: Expert) => {
-    setSelectedExpert(expert);
-    setShowContactForm(true);
+  const resetForms = () => {
+    setHireForm({
+      name: '',
+      email: '',
+      company: '',
+      projectType: '',
+      budget: '',
+      timeline: '',
+      message: '',
+    });
+    setRegisterForm({
+      name: '',
+      email: '',
+      phone: '',
+      skills: [],
+      experience: '',
+      portfolio: '',
+      hourlyRate: '',
+      bio: '',
+    });
+    setNewSkill('');
+    setSubmissionStatus('idle');
+    setMessage('');
   };
 
-  const submitContactRequest = () => {
-    if (!selectedExpert || !contactForm.message.trim()) return;
-
-    const newRequest: ContactRequest = {
-      expertId: selectedExpert.id,
-      message: contactForm.message,
-      projectType: contactForm.projectType,
-      budget: contactForm.budget,
-      timeline: contactForm.timeline,
-      status: 'pending',
-      createdAt: new Date(),
-    };
-
-    setContactRequests([...contactRequests, newRequest]);
-    setContactForm({ message: '', projectType: '', budget: '', timeline: '' });
-    setShowContactForm(false);
-    setSelectedExpert(null);
-
-    alert(`Your message has been sent to ${selectedExpert.name}. They will respond within ${selectedExpert.responseTime}.`);
+  const handleHireSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmissionStatus('loading');
+    try {
+      const response = await apiClient.submitHireExpertRequest(hireForm);
+      setSubmissionStatus('success');
+      setMessage(response.data?.message || 'Your request has been submitted successfully!');
+      resetForms();
+      setTimeout(() => setActiveForm('none'), 3000);
+    } catch (error) {
+      setSubmissionStatus('error');
+      setMessage('Failed to submit your request. Please try again.');
+      console.error('Error submitting hire request:', error);
+    }
   };
 
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        className={`w-3 h-3 ${i < Math.floor(rating) ? 'text-yellow-400 fill-current' : 'text-gray-300'}`}
-      />
-    ));
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmissionStatus('loading');
+    try {
+      const response = await apiClient.submitExpertRegistration(registerForm);
+      setSubmissionStatus('success');
+      setMessage(response.data?.message || 'Your registration has been submitted successfully!');
+      resetForms();
+      setTimeout(() => setActiveForm('none'), 3000);
+    } catch (error) {
+      setSubmissionStatus('error');
+      setMessage('Failed to submit your registration. Please try again.');
+      console.error('Error submitting registration:', error);
+    }
   };
 
-  return (
-    <div className="h-full flex flex-col bg-white">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-100">
-        <h1 className="text-xl font-semibold text-gray-900 mb-1">Expert Hub</h1>
-        <p className="text-sm text-gray-600">
-          Connect with experts, apply to become one, or get professional consulting
-        </p>
-      </div>
+  const addSkill = () => {
+    if (newSkill.trim() && !registerForm.skills.includes(newSkill.trim())) {
+      setRegisterForm({
+        ...registerForm,
+        skills: [...registerForm.skills, newSkill.trim()],
+      });
+      setNewSkill('');
+    }
+  };
+  const removeSkill = (skillToRemove: string) => {
+    setRegisterForm({
+      ...registerForm,
+      skills: registerForm.skills.filter(skill => skill !== skillToRemove),
+    });
+  };
 
-      {/* Filters */}
-      <div className="p-4 border-b border-gray-100">
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search experts..."
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              />
-            </div>
-            <select
-              value={skillFilter}
-              onChange={(e) => setSkillFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            >
-              <option value="">All Skills</option>
-              {allSkills.map(skill => (
-                <option key={skill} value={skill}>{skill}</option>
-              ))}
-            </select>
+  // --- Main Option Screen ---
+  if (activeForm === 'none') {
+    return (
+      <div className="h-full flex flex-col bg-gradient-to-b from-white to-blue-50">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-gray-100 shadow-sm">
+          <div className="max-w-2xl mx-auto px-4 py-4 flex flex-col gap-1">
+            <h1 className="text-2xl font-bold text-blue-700 tracking-tight">Expert Hub</h1>
+            <p className="text-gray-600 text-sm">Lovable Ex Agency – Your gateway to top talent and consulting</p>
           </div>
-          
-          <div className="flex gap-2">
-            <select
-              value={availabilityFilter}
-              onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'busy')}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            >
-              <option value="all">All Availability</option>
-              <option value="available">Available</option>
-              <option value="busy">Busy</option>
-            </select>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Max Rate:</span>
-              <input
-                type="range"
-                min="50"
-                max="200"
-                value={maxRate}
-                onChange={(e) => setMaxRate(Number(e.target.value))}
-                className="flex-1"
-              />
-              <span className="text-sm font-medium text-gray-900 w-12">${maxRate}</span>
+        </div>
+        {/* Main Content Scrollable */}
+        <div className="flex-1 overflow-y-auto max-h-[calc(100vh-64px)]">
+          <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+            {/* Agency Callout */}
+            <div className="bg-blue-100/60 border border-blue-200 rounded-xl p-6 flex flex-col md:flex-row items-center gap-4 shadow-sm">
+              <div className="flex-shrink-0 flex items-center justify-center w-16 h-16 rounded-full bg-blue-200">
+                <Briefcase className="w-8 h-8 text-blue-700" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-blue-900 mb-1">Work with the Lovable Ex Agency</h2>
+                <p className="text-gray-700 text-sm mb-1">We connect you with handpicked experts for your project or help you join our network of professionals. Let’s build something great together!</p>
+                <ul className="text-xs text-blue-800 flex flex-wrap gap-3 mt-2">
+                  <li>• Fast response</li>
+                  <li>• Vetted talent</li>
+                  <li>• Transparent process</li>
+                  <li>• Personalized matching</li>
+                </ul>
+              </div>
+            </div>
+            {/* Options */}
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Hire Expert Card */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow hover:shadow-lg transition-shadow p-6 flex flex-col h-full">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100">
+                    <Briefcase className="w-6 h-6 text-blue-600" />
+                  </span>
+                  <h3 className="text-xl font-semibold text-blue-800">Hire an Expert</h3>
+                </div>
+                <p className="text-gray-600 mb-3 text-sm">Need help with your project? We’ll match you with the right expert for development, design, consulting, and more.</p>
+                <ul className="text-xs text-gray-500 mb-4 space-y-1">
+                  <li>• Full-stack developers</li>
+                  <li>• UX/UI designers</li>
+                  <li>• DevOps engineers</li>
+                  <li>• Project managers</li>
+                  <li>• Business consultants</li>
+                </ul>
+                <button
+                  onClick={() => setActiveForm('hire')}
+                  className="mt-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow"
+                >
+                  Get Started
+                </button>
+              </div>
+              {/* Register as Expert Card */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow hover:shadow-lg transition-shadow p-6 flex flex-col h-full">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100">
+                    <UserPlus className="w-6 h-6 text-green-600" />
+                  </span>
+                  <h3 className="text-xl font-semibold text-green-800">Register as an Expert</h3>
+                </div>
+                <p className="text-gray-600 mb-3 text-sm">Join our network and get matched with exciting projects. Set your own rates and work flexibly with top clients.</p>
+                <ul className="text-xs text-gray-500 mb-4 space-y-1">
+                  <li>• Flexible work</li>
+                  <li>• Competitive pay</li>
+                  <li>• Diverse opportunities</li>
+                  <li>• Professional growth</li>
+                  <li>• Community support</li>
+                </ul>
+                <button
+                  onClick={() => setActiveForm('register')}
+                  className="mt-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium shadow"
+                >
+                  Apply Now
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4">
-          <div className="space-y-3">
-            {/* Apply as an Expert Card */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <UserPlus className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900 text-sm mb-1">Become an Expert</h3>
-                  <p className="text-xs text-gray-600 mb-2">Share your expertise and help others while earning money</p>
-                  <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                    Apply Now
-                  </button>
-                </div>
-              </div>
+  // --- Hire an Expert Form ---
+  if (activeForm === 'hire') {
+    return (
+      <div className="h-full flex flex-col bg-gradient-to-b from-white to-blue-50">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-gray-100 shadow-sm">
+          <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+            <button
+              onClick={() => setActiveForm('none')}
+              className="p-2 text-blue-500 hover:text-blue-700 rounded-full focus:outline-none"
+              aria-label="Back"
+            >
+              <ArrowLeftCircle className="w-6 h-6" />
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-blue-700">Hire an Expert</h1>
+              <p className="text-xs text-gray-500">Tell us about your project and we’ll connect you with the right talent</p>
             </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
-                <div className="text-lg font-semibold text-gray-900">{experts.length}</div>
-                <div className="text-xs text-gray-600">Total Experts</div>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
-                <div className="text-lg font-semibold text-green-600">{availableCount}</div>
-                <div className="text-xs text-gray-600">Available Now</div>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
-                <div className="text-lg font-semibold text-gray-900">{filteredExperts.length}</div>
-                <div className="text-xs text-gray-600">Filtered Results</div>
-              </div>
+          </div>
+        </div>
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto max-h-[calc(100vh-64px)]">
+          <div className="max-w-2xl mx-auto px-4 py-8">
+            {/* Intro Section */}
+            <div className="mb-6 bg-blue-50 border border-blue-100 rounded-lg p-4">
+              <h2 className="text-base font-semibold text-blue-800 mb-1">How it works</h2>
+              <ul className="text-xs text-blue-700 space-y-1 pl-4 list-disc">
+                <li>Fill out the form below with your project details</li>
+                <li>Our team will review and match you with the best expert(s)</li>
+                <li>You’ll receive a response within 24 hours</li>
+              </ul>
             </div>
-
-            {/* Experts List */}
-            {filteredExperts.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Users className="w-6 h-6 text-gray-400" />
+            {/* Form Card */}
+            <div className="bg-white rounded-2xl shadow border border-gray-200 p-6">
+              {submissionStatus === 'success' ? (
+                <div className="flex flex-col items-center justify-center min-h-[300px]">
+                  <CheckCircle className="w-12 h-12 text-green-500 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Request Submitted!</h3>
+                  <p className="text-gray-600 max-w-md text-center">{message}</p>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No experts found</h3>
-                <p className="text-gray-500 text-sm">Try adjusting your filters</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredExperts.map((expert) => (
-                  <div key={expert.id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium text-gray-900 text-sm">{expert.name}</h3>
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${availabilityColors[expert.availability]}`}>
-                            {availabilityIcons[expert.availability]} {expert.availability}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600 mb-2">{expert.title}</p>
-                        
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="flex items-center gap-1">
-                            {renderStars(expert.rating)}
-                            <span className="text-xs text-gray-600">({expert.reviews})</span>
-                          </div>
-                          <span className="text-xs text-gray-400">•</span>
-                          <span className="text-xs font-medium text-gray-900">${expert.hourlyRate}/hr</span>
-                          <span className="text-xs text-gray-400">•</span>
-                          <span className="text-xs text-gray-600">{expert.responseTime}</span>
-                        </div>
-
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {expert.skills.slice(0, 4).map((skill) => (
-                            <span key={skill} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
-                              {skill}
-                            </span>
-                          ))}
-                          {expert.skills.length > 4 && (
-                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
-                              +{expert.skills.length - 4} more
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-xs text-gray-600 line-clamp-2">{expert.bio}</p>
-                      </div>
+              ) : (
+                <form onSubmit={handleHireSubmit} className="space-y-6">
+                  {submissionStatus === 'error' && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-sm text-red-700">{message}</span>
                     </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {expert.location}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Users2 className="w-3 h-3" />
-                          {expert.completedProjects} projects
-                        </div>
+                  )}
+                  {/* Contact Info */}
+                  <div>
+                    <h4 className="text-blue-700 font-semibold mb-2 text-sm">Contact Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Full Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={hireForm.name}
+                          onChange={(e) => setHireForm({ ...hireForm, name: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          placeholder="Your full name"
+                        />
                       </div>
-                      
-                      <div className="flex gap-2">
-                        {expert.portfolio && (
-                          <a
-                            href={expert.portfolio}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
-                          >
-                            <Globe className="w-3 h-3" />
-                          </a>
-                        )}
-                        <button
-                          onClick={() => handleContactExpert(expert)}
-                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs"
-                        >
-                          Contact
-                        </button>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Email Address *</label>
+                        <input
+                          type="email"
+                          required
+                          value={hireForm.email}
+                          onChange={(e) => setHireForm({ ...hireForm, email: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          placeholder="your@email.com"
+                        />
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  {/* Project Details */}
+                  <div>
+                    <h4 className="text-blue-700 font-semibold mb-2 text-sm">Project Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Company (Optional)</label>
+                        <input
+                          type="text"
+                          value={hireForm.company}
+                          onChange={(e) => setHireForm({ ...hireForm, company: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          placeholder="Your company name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Project Type *</label>
+                        <input
+                          type="text"
+                          required
+                          value={hireForm.projectType}
+                          onChange={(e) => setHireForm({ ...hireForm, projectType: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          placeholder="e.g., Web Development"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Budget *</label>
+                        <input
+                          type="text"
+                          required
+                          value={hireForm.budget}
+                          onChange={(e) => setHireForm({ ...hireForm, budget: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          placeholder="e.g., $5,000 - $10,000"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Timeline *</label>
+                        <input
+                          type="text"
+                          required
+                          value={hireForm.timeline}
+                          onChange={(e) => setHireForm({ ...hireForm, timeline: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          placeholder="e.g., 2-3 weeks"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Project Description *</label>
+                      <textarea
+                        required
+                        value={hireForm.message}
+                        onChange={(e) => setHireForm({ ...hireForm, message: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        rows={4}
+                        placeholder="Describe your project requirements, goals, and any specific expertise needed..."
+                      />
+                    </div>
+                  </div>
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveForm('none')}
+                      className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submissionStatus === 'loading'}
+                      className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                    >
+                      {submissionStatus === 'loading' ? (
+                        <>
+                          <Loader className="w-4 h-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        'Submit Request'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Contact Form Modal */}
-      {showContactForm && selectedExpert && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-5 w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-semibold mb-4">Contact {selectedExpert.name}</h3>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
-                <input
-                  type="text"
-                  value={contactForm.projectType}
-                  onChange={(e) => setContactForm({ ...contactForm, projectType: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  placeholder="e.g., Web Development, Consulting"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Budget</label>
-                <input
-                  type="text"
-                  value={contactForm.budget}
-                  onChange={(e) => setContactForm({ ...contactForm, budget: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  placeholder="e.g., $5,000 - $10,000"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Timeline</label>
-                <input
-                  type="text"
-                  value={contactForm.timeline}
-                  onChange={(e) => setContactForm({ ...contactForm, timeline: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  placeholder="e.g., 2-3 weeks"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                <textarea
-                  value={contactForm.message}
-                  onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
-                  rows={3}
-                  placeholder="Describe your project and requirements..."
-                />
-              </div>
-            </div>
-            
-            <div className="flex gap-3 mt-5">
-              <button
-                onClick={() => setShowContactForm(false)}
-                className="flex-1 py-2 px-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitContactRequest}
-                disabled={!contactForm.message.trim()}
-                className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors text-sm"
-              >
-                Send Message
-              </button>
+  // --- Register as Expert Form ---
+  if (activeForm === 'register') {
+    return (
+      <div className="h-full flex flex-col bg-gradient-to-b from-white to-green-50">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-gray-100 shadow-sm">
+          <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+            <button
+              onClick={() => setActiveForm('none')}
+              className="p-2 text-green-500 hover:text-green-700 rounded-full focus:outline-none"
+              aria-label="Back"
+            >
+              <ArrowLeftCircle className="w-6 h-6" />
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-green-700">Register as an Expert</h1>
+              <p className="text-xs text-gray-500">Share your expertise and join our network</p>
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto max-h-[calc(100vh-64px)]">
+          <div className="max-w-2xl mx-auto px-4 py-8">
+            {/* Intro Section */}
+            <div className="mb-6 bg-green-50 border border-green-100 rounded-lg p-4">
+              <h2 className="text-base font-semibold text-green-800 mb-1">Why join Lovable Ex?</h2>
+              <ul className="text-xs text-green-700 space-y-1 pl-4 list-disc">
+                <li>Get matched with projects that fit your skills</li>
+                <li>Set your own rates and work flexibly</li>
+                <li>Grow your professional network and reputation</li>
+              </ul>
+            </div>
+            {/* Form Card */}
+            <div className="bg-white rounded-2xl shadow border border-gray-200 p-6">
+              {submissionStatus === 'success' ? (
+                <div className="flex flex-col items-center justify-center min-h-[300px]">
+                  <CheckCircle className="w-12 h-12 text-green-500 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Registration Submitted!</h3>
+                  <p className="text-gray-600 max-w-md text-center">{message}</p>
+                </div>
+              ) : (
+                <form onSubmit={handleRegisterSubmit} className="space-y-6">
+                  {submissionStatus === 'error' && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-sm text-red-700">{message}</span>
+                    </div>
+                  )}
+                  {/* Personal Info */}
+                  <div>
+                    <h4 className="text-green-700 font-semibold mb-2 text-sm">Personal Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Full Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={registerForm.name}
+                          onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          placeholder="Your full name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Email Address *</label>
+                        <input
+                          type="email"
+                          required
+                          value={registerForm.email}
+                          onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          placeholder="your@email.com"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Phone (Optional)</label>
+                        <input
+                          type="tel"
+                          value={registerForm.phone}
+                          onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          placeholder="+1 (555) 123-4567"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Years of Experience *</label>
+                        <input
+                          type="text"
+                          required
+                          value={registerForm.experience}
+                          onChange={(e) => setRegisterForm({ ...registerForm, experience: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          placeholder="e.g., 5+ years"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Professional Details */}
+                  <div>
+                    <h4 className="text-green-700 font-semibold mb-2 text-sm">Professional Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Portfolio URL (Optional)</label>
+                        <input
+                          type="url"
+                          value={registerForm.portfolio}
+                          onChange={(e) => setRegisterForm({ ...registerForm, portfolio: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          placeholder="https://yourportfolio.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Hourly Rate (Optional)</label>
+                        <input
+                          type="text"
+                          value={registerForm.hourlyRate}
+                          onChange={(e) => setRegisterForm({ ...registerForm, hourlyRate: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          placeholder="e.g., $75/hour"
+                        />
+                      </div>
+                    </div>
+                    {/* Skills */}
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Skills *</label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={newSkill}
+                          onChange={(e) => setNewSkill(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          placeholder="Add a skill (e.g., React)"
+                        />
+                        <button
+                          type="button"
+                          onClick={addSkill}
+                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      {registerForm.skills.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {registerForm.skills.map((skill) => (
+                            <span
+                              key={skill}
+                              className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm flex items-center gap-1"
+                            >
+                              {skill}
+                              <button
+                                type="button"
+                                onClick={() => removeSkill(skill)}
+                                className="text-green-600 hover:text-green-800"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {registerForm.skills.length === 0 && (
+                        <p className="text-sm text-gray-500">At least one skill is required</p>
+                      )}
+                    </div>
+                    {/* Bio */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Professional Bio *</label>
+                      <textarea
+                        required
+                        value={registerForm.bio}
+                        onChange={(e) => setRegisterForm({ ...registerForm, bio: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                        rows={4}
+                        placeholder="Tell us about your professional background, expertise, and what makes you unique..."
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Minimum 50 characters ({registerForm.bio.length}/50)
+                      </p>
+                    </div>
+                  </div>
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveForm('none')}
+                      className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submissionStatus === 'loading' || registerForm.skills.length === 0 || registerForm.bio.length < 50}
+                      className="flex-1 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                    >
+                      {submissionStatus === 'loading' ? (
+                        <>
+                          <Loader className="w-4 h-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        'Submit Application'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 };
 
 export default ExpertHub; 

@@ -271,6 +271,21 @@ class ApiClient {
 
     return response.blob();
   }
+
+  // Expert Hub methods
+  async submitHireExpertRequest(request: HireExpertRequest): Promise<ApiResponse<{ message: string }>> {
+    return this.request('/experts/hire', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async submitExpertRegistration(request: RegisterExpertRequest): Promise<ApiResponse<{ message: string }>> {
+    return this.request('/experts/register', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
 }
 
 // Add interface for AI-generated test cases
@@ -313,6 +328,28 @@ export interface ConversationData {
   mergedMessages: Array<{ sender: 'user' | 'ai'; text: string; timestamp?: string }>;
   url?: string;
   title?: string;
+}
+
+// Expert Hub interfaces
+export interface HireExpertRequest {
+  name: string;
+  email: string;
+  company?: string;
+  projectType: string;
+  budget: string;
+  timeline: string;
+  message: string;
+}
+
+export interface RegisterExpertRequest {
+  name: string;
+  email: string;
+  phone?: string;
+  skills: string[];
+  experience: string;
+  portfolio?: string;
+  hourlyRate?: string;
+  bio: string;
 }
 
 // Export singleton instance
