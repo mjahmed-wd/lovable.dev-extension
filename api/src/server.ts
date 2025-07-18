@@ -32,10 +32,7 @@ const limiter = rateLimit({
 
 // Middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true
-}));
+app.use(cors({ origin: '*' }));
 app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -53,6 +50,10 @@ const swaggerOptions = {
       {
         url: `http://localhost:${PORT}`,
         description: 'Development server',
+      },
+      {
+        url: `http://${process.env.HOST || 'localhost'}:${PORT}`,
+        description: 'Production server',
       },
     ],
     components: {

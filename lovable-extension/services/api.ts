@@ -1,5 +1,5 @@
 // API configuration
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://65.21.182.200:3001/api';
 
 interface ApiResponse<T = any> {
   success: boolean;

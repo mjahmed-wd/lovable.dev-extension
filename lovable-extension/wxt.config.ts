@@ -35,7 +35,7 @@ export default defineConfig({
       default_path: 'sidepanel.html'
     },
     content_security_policy: {
-      extension_pages: "script-src 'self' 'wasm-unsafe-eval' http://localhost:3000; object-src 'self'; connect-src 'self' http://localhost:3000 ws://localhost:3000;"
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval' http://localhost:3000; object-src 'self'; connect-src 'self' http://localhost:3000 ws://localhost:3000 http://localhost:3001 http://65.21.182.200:3001;"
     }
   }
 });
